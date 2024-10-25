@@ -1,0 +1,7 @@
+CHECKMARX_BASE_URL=https://checkmarx.viettelcyber.com
+CHECKMARX_TEAM=CxServer/ML
+GITLAB_API_URL=https://gitlab.viettelcyber.com/api/v4/
+GITLAB_BLOCK_MERGE=false
+GITLAB_ERROR_MERGE=false
+CHECKMARX_SETTINGS_OVERRIDE=true
+CX_FLOW_FILTER_SEVERITY=High,Medium,Low
