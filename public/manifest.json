@@ -1,0 +1,40 @@
+{
+  "name": "vSOC: Mobility Security Operation Center",
+  "version": "0.1",
+  "manifest_version": 3,
+  "description": "vSOC: Mobility Security Operation Center",
+  "background": {
+    "service_worker": "js/server_worker.js"
+  },
+  "side_panel": {
+    "default_path": "index.html"
+  },
+  "permissions": [
+    "sidePanel",
+    "contextMenus",
+    "storage",
+    "tabs",
+    "webNavigation"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*/",
+        "https://*/*",
+        "http://*/",
+        "http://*/*"
+      ],
+      "css": [
+        "css/content_script.css"
+      ],
+      "js": [
+        "js/content_script.js"
+      ]
+    }
+  ],
+  "icons": {
+    "32": "logo.png",
+    "128": "logo.png"
+  }
+  
+}
