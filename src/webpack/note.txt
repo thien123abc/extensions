@@ -1,0 +1,1 @@
+chuyển folder này ra ngoài cùng cấp vs folder src chứ k phải con của src
