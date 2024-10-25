@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "strict": true,
+        "target": "es6",
+        "moduleResolution": "node",
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "module": "ES6",
+        "esModuleInterop": true,
+        "sourceMap": true,
+        //"rootDir": "src",
+        //"outDir": "dist/js",
+        //"noEmitOnError": true,
+        "jsx": "react-jsx",
+        //"typeRoots": [
+        //    "node_modules/@types"
+        //],
+        //"baseUrl": "./src"
+    },
+    "include": ["src"]
+}
