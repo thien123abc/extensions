@@ -1,0 +1,1 @@
+di chuyển folder images này cùng cấp folder css chứ k phải con của css, đây là tạo nhầm
