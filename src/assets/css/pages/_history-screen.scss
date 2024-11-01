@@ -85,7 +85,7 @@
   .body-panel {
     height: calc(100% - 71px);
     .his-chat-panel {
-      padding: 16px 16px 0 16px;
+      padding-top: 16px;
       height: 98%;
       overflow-y: scroll;
       &::-webkit-scrollbar {
@@ -97,6 +97,23 @@
         background-color: #808080;
         border-radius: 99px;
       }
+
+      .his-chat {
+        // display: flex;
+        // justify-content: space-between;
+        // align-items: flex-end;
+        border-bottom: 1px solid #2e2e2f;
+        padding: 0 16px;
+        position: relative;
+
+        &:hover {
+          background: #242428;
+        }
+        &:hover > .item-his-view-actions {
+          display: flex;
+        }
+  
+      
       .item-his-view {
         width: 100%;
         text-align: left;
@@ -121,7 +138,57 @@
           margin-top: 0px;
         }
       }
-    }
+    .item-his-view-actions {
+          width: 64px;
+          display: none;
+          justify-content: space-evenly;
+          background-color: #3d3d43;
+          height: 32px;
+          border-radius: 4px;
+          align-items: center;
+          margin-bottom: 4px;
+          flex-shrink: 0;
+          right: 16px;
+          bottom: 1px;
+          position: absolute;
+
+          img#edit-icon {
+            width: 18px;
+            cursor: pointer;
+          }
+          img#delete-icon {
+            cursor: pointer;
+            width: 18px;
+          }
+        }
+
+        .action-container {
+          // display: flex;
+          align-items: center;
+          width: 176px;
+          flex-shrink: 0;
+          justify-content: space-between;
+          position: absolute;
+          right: 16px;
+          bottom: 1px;
+
+          & > .edit-confirmation {
+            display: flex;
+            width: 110px;
+            flex-shrink: 0;
+            justify-content: space-between;
+            margin-bottom: 4px;
+
+            & > button {
+              min-width: 49px;
+              height: 32px;
+              font-size: 14px;
+              font-weight: 500;
+              color: #e5e5e7;
+              flex-shrink: 0;
+              text-transform: none;
+            }
+          }
 
     .no-data-view {
       height: 100%;
