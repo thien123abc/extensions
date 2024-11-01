@@ -36,6 +36,18 @@ module.exports = {
                 ],
                 exclude: /node_modules/,
             },
+            {
+                test: /\.svg$/, // Thêm rule xử lý file SVG
+                use: [
+                    {
+                        loader: 'url-loader', // Hoặc 'file-loader' tùy thuộc vào nhu cầu của bạn
+                        options: {
+                            limit: 8192, // Nếu file nhỏ hơn 8KB, nó sẽ được inline, nếu không sẽ tạo file
+                        },
+                    },
+                ],
+                exclude: /node_modules/,
+            }
         ],
     },
     resolve: {
