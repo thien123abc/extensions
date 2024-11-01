@@ -15,6 +15,9 @@
     "author": "is_hoan",
     "license": "MIT",
     "dependencies": {
+        "@tippyjs/react": "^4.2.6",
+        "file-loader": "^6.2.0",
+        "url-loader": "^4.1.1",
         "@emotion/react": "^11.11.4",
         "@emotion/styled": "^11.11.5",
         "@mui/material": "^5.15.15",
