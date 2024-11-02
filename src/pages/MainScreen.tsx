@@ -9,7 +9,7 @@ import {
   IVsocStoredMessage,
   VsocConversationType,
 } from '../api/VsocTypes';
-import '../assets/css/index.scss';
+// import '../assets/css/index.scss';
 import config from '../env.json';
 
 interface IVsocStoredMessageStore extends IVsocStoredMessage {
@@ -24,6 +24,8 @@ function MainScreen() {
   const [textValue, setTextValue] = useState<string>('');
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const location = useLocation<any>();
+  console.log('location', location);
+
   const [detailHis, setDetailHis] = useState<IVsocStoredConversation | null>();
   const [actionMess, setActionMess] = useState<string>('');
   const [currentConversationID, setCurrentConversationID] = useState('');

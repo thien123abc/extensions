@@ -24,7 +24,7 @@ function App() {
     <Router>
       <Switch>
         <Route exact path={'/'} component={MainScreen} />
-        <Route path={'/history'} component={HistoryScreen} />
+        <Route exact path={'/history'} component={HistoryScreen} />
       </Switch>
     </Router>
   );

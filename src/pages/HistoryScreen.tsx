@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useHistory } from 'react-router';
 import api from '../api/VsocApi';
 import { IVsocStoredConversation } from '../api/VsocTypes';
 import moment from 'moment';
-import EditIcon from '../assets/icons/edit-icon.svg';
 import DeleteIcon from '../assets/icons/delete-icon.svg';
+import EditIcon from '../assets/icons/edit-icons.svg';
 import Button from '@mui/material/Button';
-import { FormControl, FormHelperText, Input, Typography } from '@mui/material';
+import { FormHelperText, Input, Typography } from '@mui/material';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 

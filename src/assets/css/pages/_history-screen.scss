@@ -112,33 +112,32 @@
         &:hover > .item-his-view-actions {
           display: flex;
         }
-  
-      
-      .item-his-view {
-        width: 100%;
-        text-align: left;
-        color: #c9c9cf;
-        background-color: transparent;
-        border: none;
-        padding: 16px 0px;
-        border-bottom: 1px solid $border-b-color;
-        font-family: 'Roboto', sans-serif;
-        p {
-          margin: 0px;
-          font-size: 14px;
-          margin-top: 8px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          word-break: break-all;
-          white-space: nowrap;
+
+        .item-his-view {
+          width: 100%;
+          text-align: left;
+          color: #c9c9cf;
+          background-color: transparent;
+          border: none;
+          padding: 16px 0px;
+          border-bottom: 1px solid $border-b-color;
+          font-family: 'Roboto', sans-serif;
+          p {
+            margin: 0px;
+            font-size: 14px;
+            margin-top: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            word-break: break-all;
+            white-space: nowrap;
+          }
+          .title-item-his-view {
+            font-size: 16px;
+            color: $primary-color;
+            margin-top: 0px;
+          }
         }
-        .title-item-his-view {
-          font-size: 16px;
-          color: $primary-color;
-          margin-top: 0px;
-        }
-      }
-    .item-his-view-actions {
+        .item-his-view-actions {
           width: 64px;
           display: none;
           justify-content: space-evenly;
@@ -189,7 +188,9 @@
               text-transform: none;
             }
           }
-
+        }
+      }
+    }
     .no-data-view {
       height: 100%;
       display: flex;
