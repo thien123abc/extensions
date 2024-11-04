@@ -9,7 +9,7 @@ import {
   IVsocStoredMessage,
   VsocConversationType,
 } from '../api/VsocTypes';
-// import '../assets/css/index.scss';
+import '../assets/css/index.scss';
 import config from '../env.json';
 
 interface IVsocStoredMessageStore extends IVsocStoredMessage {
@@ -24,8 +24,6 @@ function MainScreen() {
   const [textValue, setTextValue] = useState<string>('');
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const location = useLocation<any>();
-  console.log('location', location);
-
   const [detailHis, setDetailHis] = useState<IVsocStoredConversation | null>();
   const [actionMess, setActionMess] = useState<string>('');
   const [currentConversationID, setCurrentConversationID] = useState('');
@@ -127,11 +125,14 @@ function MainScreen() {
             message: raw,
             message_html: await markdownToHtml(raw),
           };
+          console.log('text convert sau=>', messages[messages.length - 1].message_html);
         } else {
           const message: IVsocStoredMessageStore = {
             ...data.result,
             message_html: await markdownToHtml(data.result.message),
           };
+          console.log('text convert ban đầu=>', message.message_html);
+
           messages.push(message);
         }
         setForceRenderValue((prev) => prev + 1);
@@ -145,6 +146,8 @@ function MainScreen() {
       setActionMess('');
     }
   };
+
+  console.log('mess=>', messages);
 
   const createConversation = async (msg: string, type: VsocConversationType) => {
     console.log('Start Create Conversation with text', msg, ' and type', type);
@@ -223,7 +226,7 @@ function MainScreen() {
     <div id="main-screen" className="container">
       {!detailHis?.id ? (
         <div id="head-panel" className="head-panel">
-          <p className="title-sidepanel">Chat</p>
+          <p className="title-sidepanel">Chat11111</p>
           <img id="logoIcon" src={require('../assets/images/vSOC-logo.png')} alt="vSOC-logo" />
           <div className="right-btn-row">
             <div className="custom-tooltip" style={{ display: showTooltip ? 'flex' : 'none' }}>
@@ -262,7 +265,7 @@ function MainScreen() {
           <div className="right-btn-row">
             <div className="custom-tooltip" style={{ display: showTooltip ? 'flex' : 'none' }}>
               <div className="content-tooltip">
-                <p>Tạo chat mới</p>
+                <p>Tạo chat mới nha</p>
               </div>
               <div className="after-tooltip" />
             </div>
@@ -299,14 +302,18 @@ function MainScreen() {
               let raw_html = '';
               let raw_html_table = '';
               const raw_html_list = item.message_html.split('<table>');
+              console.log('raw_html_list', raw_html_list);
               raw_html_list.forEach((itemText) => {
                 raw_html += itemText + '<div id="scroll-view-table"><table>';
               });
+              console.log('raw_html', raw_html);
 
               const raw_html_list_tail = raw_html.split('</table>');
+              console.log('raw_html_list_tail', raw_html_list_tail);
               raw_html_list_tail.forEach((itemText) => {
                 raw_html_table += itemText + '</table></div>';
               });
+              console.log('raw_html_table', raw_html_table);
 
               return (
                 <div
