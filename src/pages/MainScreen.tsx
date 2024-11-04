@@ -11,6 +11,10 @@ import {
 } from '../api/VsocTypes';
 import '../assets/css/index.scss';
 import config from '../env.json';
+import Tippy from '@tippyjs/react';
+import IconEditDetail from '../assets/icons/icon-edit-detail.svg';
+import { IconButton } from '@mui/material';
+import ConfirmationDialog from '../components/ConfirmationDialog';
 
 interface IVsocStoredMessageStore extends IVsocStoredMessage {
   isStored?: boolean;
@@ -28,6 +32,7 @@ function MainScreen() {
   const [actionMess, setActionMess] = useState<string>('');
   const [currentConversationID, setCurrentConversationID] = useState('');
   const [showTooltip, setShowTooltip] = useState<boolean>(false);
+  const [isEditDetail, setIsEditDetail] = useState<boolean>(false);
 
   chrome?.runtime?.onMessage?.addListener((message: IChromeMessage) => {
     if (message && message.type === 'text_from_monitor') {
@@ -42,6 +47,8 @@ function MainScreen() {
       setCurrentConversationID(location.state.id);
     }
   }, []);
+
+  console.log('detailhis', detailHis);
 
   marked.use({
     silent: true,
@@ -262,29 +269,45 @@ function MainScreen() {
             </button>
             <p>{detailHis?.title}</p>
           </div>
-          <div className="right-btn-row">
-            <div className="custom-tooltip" style={{ display: showTooltip ? 'flex' : 'none' }}>
-              <div className="content-tooltip">
-                <p>Tạo chat mới nha</p>
+          <div className="detail-action-buttons">
+            <Tippy content="Đổi tên" interactive>
+              <IconButton size="small" sx={{ width: 40, height: 40, marginRight: '4px' }}>
+                <img
+                  id="edit-icon-detail"
+                  src={IconEditDetail}
+                  alt="edit-icon-detail"
+                  style={{ width: '24px', height: '24px' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsEditDetail(true);
+                  }}
+                />
+              </IconButton>
+            </Tippy>
+            <div className="right-btn-row">
+              <div className="custom-tooltip" style={{ display: showTooltip ? 'flex' : 'none' }}>
+                <div className="content-tooltip">
+                  <p>Tạo chat mới nha</p>
+                </div>
+                <div className="after-tooltip" />
               </div>
-              <div className="after-tooltip" />
+              <button
+                onClick={() => {
+                  setDetailHis(null);
+                  setMessages([]);
+                  setCurrentConversationID('');
+                  setActionMess('');
+                }}
+                onMouseEnter={() => {
+                  setShowTooltip(true);
+                }}
+                onMouseLeave={() => {
+                  setShowTooltip(false);
+                }}
+              >
+                <img id="menu-icon" src={require('../assets/images/plus-icon.png')} alt="plus-icon" />
+              </button>
             </div>
-            <button
-              onClick={() => {
-                setDetailHis(null);
-                setMessages([]);
-                setCurrentConversationID('');
-                setActionMess('');
-              }}
-              onMouseEnter={() => {
-                setShowTooltip(true);
-              }}
-              onMouseLeave={() => {
-                setShowTooltip(false);
-              }}
-            >
-              <img id="menu-icon" src={require('../assets/images/plus-icon.png')} alt="plus-icon" />
-            </button>
           </div>
         </div>
       )}
@@ -391,6 +414,18 @@ function MainScreen() {
           </div>
         </div>
       </div>
+      {detailHis && isEditDetail && (
+        <ConfirmationDialog
+          title="Đổi tên"
+          initialInputValue={detailHis.title}
+          isEditingTitle
+          widthBox="352px"
+          heightBox="172px"
+          onClose={() => {
+            setIsEditDetail(false);
+          }}
+        />
+      )}
     </div>
   );
 }

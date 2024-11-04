@@ -343,6 +343,8 @@ function HistoryScreen() {
           message="Bạn có chắc chắn muốn xoá hội thoại này?"
           onClose={() => setActionState(null)}
           onDelete={handleClickDelete}
+          widthBox="400px"
+          heightBox="180px"
         />
       )}
     </div>

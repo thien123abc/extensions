@@ -47,6 +47,12 @@
       align-items: center;
     }
 
+    & > .detail-action-buttons {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
     .title-sidepanel {
       color: $primary-color;
       font-size: 20px;

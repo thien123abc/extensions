@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button, Input, TextField, Typography } from '@mui/material';
 import CloseIconGray from '../assets/icons/icon-close-gray.svg';
 
 interface ConfirmationDialogProps {
   title: string;
-  message: string;
+  message?: string;
   onClose?: () => void;
   onDelete?: () => void;
+  isEditingTitle?: boolean;
+  initialInputValue?: string;
+  widthBox: string;
+  heightBox: string;
 }
 
 const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
@@ -14,8 +18,14 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
   message = '',
   onClose = () => null,
   onDelete = () => null,
+  isEditingTitle = false,
+  initialInputValue = '',
+  widthBox = '100%',
+  heightBox = '100%',
 }) => {
   const [isOpen, setIsOpen] = useState(true);
+  const [inputValue, setInputValue] = useState(initialInputValue);
+
   const handleDelete = () => {
     onDelete();
     setIsOpen(false);
@@ -40,8 +50,8 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
           left: '50%',
           transform: 'translate(-50%, -50%)',
           backgroundColor: '#303036',
-          width: '400px',
-          height: '180px',
+          width: widthBox,
+          height: heightBox,
           borderRadius: '8px',
           boxShadow: '4px 2px 32px 0px #000000',
           padding: '16px 24px',
@@ -54,7 +64,8 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
         <Box
           sx={{
             width: '100%',
-            height: '56px',
+            height: isEditingTitle ? '24px' : '56px',
+            marginBottom: isEditingTitle ? '8px' : 0,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -64,7 +75,15 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
           <Typography variant="body1" sx={{ color: 'white' }}>
             {title}
           </Typography>
-          <img src={CloseIconGray} alt="Close" onClick={onClose} style={{ cursor: 'pointer' }} />
+          <img
+            src={CloseIconGray}
+            alt="Close"
+            onClick={() => {
+              onClose();
+              setIsOpen(false);
+            }}
+            style={{ cursor: 'pointer' }}
+          />
         </Box>
         <Box
           sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.12)', width: 'calc(100% + 48px)', marginLeft: '-24px' }}
@@ -80,9 +99,58 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
             paddingTop: '8px',
           }}
         >
-          <Typography variant="body2" sx={{ color: 'white', marginBottom: '16px', marginTop: '8px' }}>
-            {message}
-          </Typography>
+          {isEditingTitle ? (
+            <Box
+              sx={{
+                width: '100%',
+                height: '92px',
+                display: 'flex',
+                justifyContent: 'space-evenly',
+                alignItems: 'flex-end',
+                flexDirection: 'column',
+              }}
+            >
+              <Input
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                autoFocus
+                sx={{
+                  width: '352px',
+                  height: '40px',
+                  backgroundColor: '#424242',
+                  color: 'white',
+                  border: '1px solid #94949E',
+                  borderRadius: '4px',
+                  padding: '0 12px',
+                  '&:hover': {
+                    borderColor: '#94949E',
+                  },
+                  '&:focus': {
+                    borderColor: '#94949E',
+                    outline: 'none',
+                    textDecoration: 'none',
+                  },
+                  '& input': {
+                    color: 'white',
+                  },
+                }}
+                disableUnderline
+              />
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  marginTop: '-8px',
+                }}
+              >
+                {inputValue.length} / 200
+              </Typography>
+            </Box>
+          ) : (
+            <Typography variant="body2" sx={{ color: 'white', marginBottom: '16px', marginTop: '8px' }}>
+              {message}
+            </Typography>
+          )}
           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
             <Button
               variant="contained"
@@ -121,7 +189,7 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
               }}
               onClick={handleDelete}
             >
-              Xóa
+              {isEditingTitle ? 'Lưu' : 'Xóa'}
             </Button>
           </Box>
         </Box>
