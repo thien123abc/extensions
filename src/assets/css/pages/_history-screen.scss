@@ -97,7 +97,6 @@
         background-color: #808080;
         border-radius: 99px;
       }
-
       .his-chat {
         // display: flex;
         // justify-content: space-between;
@@ -120,7 +119,6 @@
           background-color: transparent;
           border: none;
           padding: 16px 0px;
-          border-bottom: 1px solid $border-b-color;
           font-family: 'Roboto', sans-serif;
           p {
             margin: 0px;
@@ -137,6 +135,7 @@
             margin-top: 0px;
           }
         }
+
         .item-his-view-actions {
           width: 64px;
           display: none;
@@ -187,10 +186,29 @@
               flex-shrink: 0;
               text-transform: none;
             }
+            .spinner {
+              width: 24px;
+              height: 24px;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              & > img {
+                animation: spin 1s linear infinite;
+              }
+              @keyframes spin {
+                0% {
+                  transform: rotate(0deg);
+                }
+                100% {
+                  transform: rotate(360deg);
+                }
+              }
+            }
           }
         }
       }
     }
+
     .no-data-view {
       height: 100%;
       display: flex;
