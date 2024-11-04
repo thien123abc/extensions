@@ -3,13 +3,17 @@ import { useHistory } from 'react-router';
 import api from '../api/VsocApi';
 import { IVsocStoredConversation } from '../api/VsocTypes';
 import moment from 'moment';
+import EditIcon from '../assets/icons/edit-icon.svg';
 import DeleteIcon from '../assets/icons/delete-icon.svg';
-import EditIcon from '../assets/icons/edit-icons.svg';
 import Button from '@mui/material/Button';
 import { FormHelperText, Input, Typography } from '@mui/material';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import { useOutsideClick } from '../hooks/useOutsideClick';
+import { deleteConversationAsync, saveConversationAsync } from '../api/conversation';
+import LoadingIcon from '../assets/icons/loading-icon.svg';
+import ToastNotification from '../components/ToastNotification';
+import ConfirmationDialog from '../components/ConfirmationDialog';
 
 type ActionState = { type: 'EDIT'; id: string; text: string } | { type: 'DELETE'; id: string; text: string } | null;
 
@@ -21,36 +25,37 @@ function HistoryScreen() {
   const [conversations, setConversations] = useState<IVsocStoredConversation[]>([]);
 
   const [loading, setLoading] = useState<boolean>(true);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [toastInfo, setToastInfo] = useState(false);
 
   const [showTooltip, setShowTooltip] = useState<boolean>(false);
   const [actionState, setActionState] = useState<ActionState>(null);
 
   const [titles, setTitles] = useState<{ id: string; text: string }[]>([]);
   console.log('tit', titles);
+
   console.log('actionState', actionState);
 
-  const wrapperRef = useRef(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  console.log('refss=>', inputRef.current);
 
-  useOutsideClick(wrapperRef, () => {
-    console.log(wrapperRef.current);
-    if (actionState && actionState.type === 'EDIT') {
-      const { id, text } = actionState;
-      setTitles((prev) => [...prev.filter((item2) => item2.id !== id), { id, text }]);
-      setActionState(null);
-    }
-  });
+  const wrapperRef = useRef(null);
+  useOutsideClick(
+    wrapperRef,
+    () => {
+      console.log(wrapperRef.current);
+      if (actionState && actionState.type === 'EDIT') {
+        const { id, text } = actionState;
+        setTitles((prev) => [...prev.filter((item2) => item2.id !== id), { id, text }]);
+        setActionState(null);
+      }
+    },
+    'customSnackbar',
+  );
 
   useEffect(() => {
-    if (actionState) {
-      if (actionState.type === 'EDIT') {
-        //
-      } else if (actionState.type === 'DELETE') {
-        //
-      }
-    } else {
-      getHistoryConversation();
-    }
-  }, [actionState?.type]);
+    getHistoryConversation();
+  }, []);
 
   const getHistoryConversation = async () => {
     setLoading(true);
@@ -84,9 +89,46 @@ function HistoryScreen() {
     }
   };
 
-  const handleClickSaveEdit = (e: React.MouseEvent<HTMLButtonElement>, conversation_id: string) => {
-    e.stopPropagation();
-    setActionState(null);
+  const handleClickSaveEdit = async (e: React.MouseEvent<HTMLButtonElement>, conversation_id: string) => {
+    try {
+      e.stopPropagation();
+      setIsSaving(true);
+
+      // Giả lập độ trễ
+      const fakeDelay = new Promise((resolve) => setTimeout(resolve, 5000));
+
+      const data = await Promise.all([
+        saveConversationAsync({
+          conversation_id,
+          title: titles.find((item) => item.id === conversation_id)?.text as string,
+        }),
+        fakeDelay,
+      ]);
+      setIsSaving(false);
+      setActionState(null);
+      setConversations((prev) => {
+        const conversation = prev.find((item) => item.id === data[0]?.result?.id) as IVsocStoredConversation;
+        conversation.title = data[0]?.result?.title as string;
+        const currentConvs = [...prev.filter((item) => item.id !== conversation.id), conversation];
+        currentConvs.sort((a, b) => b.time - a.time);
+        return currentConvs;
+      });
+      console.log('data save=>', data[0]);
+      setToastInfo(false);
+    } catch (error) {
+      setToastInfo(true);
+      setIsSaving(false);
+    }
+  };
+
+  const handleClickDelete = async () => {
+    try {
+      if (actionState && actionState.type === 'DELETE') {
+        await deleteConversationAsync({ conversation_id: actionState.id });
+      }
+    } catch (error) {
+      setToastInfo(true);
+    }
   };
 
   return (
@@ -115,8 +157,8 @@ function HistoryScreen() {
         </div>
       </div>
       <div className="body-panel">
-        {!loading &&
-          (conversations.length > 0 ? (
+        {!loading ? (
+          conversations.length > 0 ? (
             <div className="his-chat-panel">
               <div className="chat-panel-container" ref={wrapperRef}>
                 {conversations.map((item: IVsocStoredConversation) => {
@@ -132,6 +174,7 @@ function HistoryScreen() {
                         {actionState && actionState.id === item.id && actionState.type === 'EDIT' ? (
                           <>
                             <Input
+                              inputRef={inputRef}
                               autoFocus={actionState && actionState.id === item.id}
                               value={titles.find((item2) => item2.id === item.id)?.text}
                               onChange={(e) => {
@@ -142,7 +185,6 @@ function HistoryScreen() {
                                       setActionState({ ...actionState });
                                     }
                                     const conversation = prev.find((item2) => item2.id === item.id);
-
                                     if (conversation) {
                                       conversation.text = e.target.value;
                                       return [...prev.filter((item2) => item2.id !== item.id), conversation];
@@ -246,7 +288,13 @@ function HistoryScreen() {
                             }
                             onClick={(e) => handleClickSaveEdit(e, item.id)}
                           >
-                            Lưu
+                            {isSaving ? (
+                              <div className="spinner">
+                                <img src={LoadingIcon} alt="icon-loading" className="" />
+                              </div>
+                            ) : (
+                              'Lưu'
+                            )}
                           </Button>
                         </div>
                       </div>
@@ -261,8 +309,42 @@ function HistoryScreen() {
               <p>Chưa có tin nhắn</p>
               <button onClick={gotoChat}>Chat với vSOC</button>
             </div>
-          ))}
+          )
+        ) : null}
       </div>
+      {toastInfo && (
+        <ToastNotification
+          open={toastInfo}
+          message={
+            actionState
+              ? actionState.type === 'EDIT'
+                ? 'Đổi tên thất bại'
+                : actionState.type === 'DELETE'
+                  ? 'Xóa hội thoại thất bại'
+                  : ''
+              : ''
+          }
+          handleClose={() => {
+            setToastInfo(false);
+            if (actionState) {
+              if (inputRef.current && actionState.type === 'EDIT') {
+                inputRef.current.focus();
+              }
+              if (actionState.type === 'DELETE') {
+                setActionState(null);
+              }
+            }
+          }}
+        />
+      )}
+      {actionState && actionState.type === 'DELETE' && (
+        <ConfirmationDialog
+          title="Xóa cuộc hội thoại"
+          message="Bạn có chắc chắn muốn xoá hội thoại này?"
+          onClose={() => setActionState(null)}
+          onDelete={handleClickDelete}
+        />
+      )}
     </div>
   );
 }
