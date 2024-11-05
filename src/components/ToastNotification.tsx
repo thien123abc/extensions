@@ -1,4 +1,3 @@
-import React from 'react';
 import Snackbar from '@mui/material/Snackbar';
 import { Box, IconButton } from '@mui/material';
 import CloseIcon from '../assets/icons/icon-close.svg'; // Nút đóng
