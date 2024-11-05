@@ -15,51 +15,24 @@ interface IDifyConversation {
 export const listConversationAsync = async (
   arg?: IVsocListStoredConversationsArgs,
 ): Promise<IVsocApiResult<IVsocStoredConversation[]>> => {
-  // const response = await fetch(
-  //   `${config.vsoc_api_url}/api/conversations?limit=${arg?.limit ?? 100}&pinned=${arg?.pinned ?? false}`,
-  //   {
-  //     method: 'GET',
-  //     headers: {
-  //       Authorization: `Bearer ${localStorage.bot_token}`,
-  //       'Content-Type': 'application/json',
-  //     },
-  //   },
-  // );
-  // const body = await response.json();
-  // const result = (body.data as IDifyConversation[]).map((conv) => {
-  //   return {
-  //     id: conv.id,
-  //     time: conv.created_at * 1000,
-  //     title: conv.name,
-  //   } as IVsocStoredConversation;
-  // });
-  const result = [
+  const response = await fetch(
+    `${config.vsoc_api_url}/api/conversations?limit=${arg?.limit ?? 100}&pinned=${arg?.pinned ?? false}`,
     {
-      id: 'idconversation1',
-      title: 'Hội Thoại 1',
-      time: 1727846400000,
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${localStorage.bot_token}`,
+        'Content-Type': 'application/json',
+      },
     },
-    {
-      id: 'idconversation2',
-      title: 'Hội Thoại 2',
-      time: 1727898700000,
-    },
-    {
-      id: 'idconversation3',
-      title: 'Hội Thoại 3',
-      time: 1727899900000,
-    },
-    {
-      id: 'idconversation4',
-      title: 'Hội Thoại 4',
-      time: 1727888800000,
-    },
-    {
-      id: 'idconversation5',
-      title: 'Hội Thoại 5',
-      time: 1727866600000,
-    },
-  ];
+  );
+  const body = await response.json();
+  const result = (body.data as IDifyConversation[]).map((conv) => {
+    return {
+      id: conv.id,
+      time: conv.created_at * 1000,
+      title: conv.name,
+    } as IVsocStoredConversation;
+  });
   console.log(result);
   return {
     status: 0,
@@ -88,7 +61,7 @@ export const saveConversationAsync = async (
 };
 
 export const deleteConversationAsync = async (arg: IVsocStoreConversationArgs): Promise<IVsocApiResult<string>> => {
-  await fetch(`${config.vsoc_api_url}/api/conversations1/${arg.conversation_id}`, {
+  await fetch(`${config.vsoc_api_url}/api/conversations/${arg.conversation_id}`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${localStorage.bot_token}`,
