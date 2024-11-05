@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
-import { Box, Button, Input, TextField, Typography } from '@mui/material';
+import React, { useRef, useState } from 'react';
+import { Box, Button, FormHelperText, Input, Typography } from '@mui/material';
 import CloseIconGray from '../assets/icons/icon-close-gray.svg';
+import { MAX_CHAR_INPUT_LENGTH } from '../pages/HistoryScreen';
+import { useOutsideClick } from '../hooks/useOutsideClick';
+import LoadingIcon from '../assets/icons/loading-icon.svg';
 
 interface ConfirmationDialogProps {
   title: string;
   message?: string;
-  onClose?: () => void;
-  onDelete?: () => void;
+  onClose: () => void;
+  onClick: (arg?: any) => any;
   isEditingTitle?: boolean;
+  isLoadingSave?: boolean;
   initialInputValue?: string;
   widthBox: string;
   heightBox: string;
@@ -16,20 +20,33 @@ interface ConfirmationDialogProps {
 const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
   title = '',
   message = '',
-  onClose = () => null,
-  onDelete = () => null,
+  onClose,
+  onClick,
   isEditingTitle = false,
   initialInputValue = '',
   widthBox = '100%',
   heightBox = '100%',
+  isLoadingSave = false,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [inputValue, setInputValue] = useState(initialInputValue);
 
-  const handleDelete = () => {
-    onDelete();
-    setIsOpen(false);
+  const wrapperRef = useRef(null);
+
+  useOutsideClick(
+    wrapperRef,
+    () => {
+      onClose();
+      setIsOpen(false);
+    },
+    'customSnackbar',
+  );
+
+  const handleClick = () => {
+    onClick(inputValue);
+    !isEditingTitle && setIsOpen(false);
   };
+
   if (!isOpen) return null;
   return (
     <Box
@@ -59,6 +76,7 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
           flexDirection: 'column',
           zIndex: 1000,
         }}
+        ref={wrapperRef}
       >
         {/* Hàng trên */}
         <Box
@@ -110,32 +128,48 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
                 flexDirection: 'column',
               }}
             >
-              <Input
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                autoFocus
+              <Box
                 sx={{
-                  width: '352px',
-                  height: '40px',
-                  backgroundColor: '#424242',
-                  color: 'white',
-                  border: '1px solid #94949E',
-                  borderRadius: '4px',
-                  padding: '0 12px',
-                  '&:hover': {
-                    borderColor: '#94949E',
-                  },
-                  '&:focus': {
-                    borderColor: '#94949E',
-                    outline: 'none',
-                    textDecoration: 'none',
-                  },
-                  '& input': {
-                    color: 'white',
-                  },
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative',
                 }}
-                disableUnderline
-              />
+              >
+                <Input
+                  value={inputValue}
+                  onChange={(e) => {
+                    if (e.target.value.length > MAX_CHAR_INPUT_LENGTH) return;
+                    setInputValue(e.target.value);
+                  }}
+                  autoFocus
+                  sx={{
+                    width: '352px',
+                    height: '40px',
+                    backgroundColor: '#424242',
+                    color: 'white',
+                    border: '1px solid #94949E',
+                    borderRadius: '4px',
+                    padding: '0 12px',
+                    '&:hover': {
+                      borderColor: '#94949E',
+                    },
+                    '&:focus': {
+                      borderColor: '#94949E',
+                      outline: 'none',
+                      textDecoration: 'none',
+                    },
+                    '& input': {
+                      color: 'white',
+                    },
+                  }}
+                  disableUnderline
+                />
+                {inputValue.length === 0 && (
+                  <FormHelperText style={{ color: 'red', fontSize: '12px', position: 'absolute', bottom: '-24px' }}>
+                    Tên hội thoại không được để trống
+                  </FormHelperText>
+                )}
+              </Box>
               <Typography
                 variant="caption"
                 sx={{
@@ -143,7 +177,7 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
                   marginTop: '-8px',
                 }}
               >
-                {inputValue.length} / 200
+                {inputValue.length} / {MAX_CHAR_INPUT_LENGTH}
               </Typography>
             </Box>
           ) : (
@@ -186,10 +220,32 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
                   backgroundColor: '#FD2F4A',
                   opacity: 0.8,
                 },
+                '&:disabled': {
+                  cursor: 'not-allowed', // Đổi con trỏ chuột khi button disabled
+                  opacity: 0.6, // Giảm độ mờ của button khi disabled (có thể thay đổi giá trị này)
+                  backgroundColor: '#FD2F4A', // Giữ màu nền là đỏ
+                  color: 'white', // Giữ chữ trắng
+                },
               }}
-              onClick={handleDelete}
+              onClick={handleClick}
+              disabled={
+                isEditingTitle
+                  ? inputValue === initialInputValue || inputValue.trim().length === 0 || isLoadingSave
+                  : false
+              }
             >
-              {isEditingTitle ? 'Lưu' : 'Xóa'}
+              {isEditingTitle ? (
+                isLoadingSave ? (
+                  <div style={spinnerStyle}>
+                    <style>{keyframesStyle}</style>
+                    <img src={LoadingIcon} alt="icon-loading" style={imgStyle} />
+                  </div>
+                ) : (
+                  'Lưu'
+                )
+              ) : (
+                'Xóa'
+              )}
             </Button>
           </Box>
         </Box>
@@ -199,3 +255,26 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
 };
 
 export default ConfirmationDialog;
+
+const spinnerStyle = {
+  width: '24px',
+  height: '24px',
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+};
+
+const imgStyle = {
+  animation: 'spin 1s linear infinite',
+};
+
+const keyframesStyle = `
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+`;
