@@ -15,6 +15,9 @@ import Tippy from '@tippyjs/react';
 import IconEditDetail from '../assets/icons/icon-edit-detail.svg';
 import { IconButton } from '@mui/material';
 import ConfirmationDialog from '../components/ConfirmationDialog';
+import IconPlus from '../assets/icons/icon-plus.svg';
+import ToastNotification from '../components/ToastNotification';
+import { saveConversationAsync } from '../api/conversation';
 
 interface IVsocStoredMessageStore extends IVsocStoredMessage {
   isStored?: boolean;
@@ -33,6 +36,8 @@ function MainScreen() {
   const [currentConversationID, setCurrentConversationID] = useState('');
   const [showTooltip, setShowTooltip] = useState<boolean>(false);
   const [isEditDetail, setIsEditDetail] = useState<boolean>(false);
+  const [toastInfo, setToastInfo] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   chrome?.runtime?.onMessage?.addListener((message: IChromeMessage) => {
     if (message && message.type === 'text_from_monitor') {
@@ -47,8 +52,6 @@ function MainScreen() {
       setCurrentConversationID(location.state.id);
     }
   }, []);
-
-  console.log('detailhis', detailHis);
 
   marked.use({
     silent: true,
@@ -229,11 +232,29 @@ function MainScreen() {
     }
   };
 
+  const handleSaveConvDetail = async (conversation_id: string, title: string) => {
+    try {
+      setIsSaving(true);
+
+      await saveConversationAsync({
+        conversation_id,
+        title,
+      });
+      setIsSaving(false);
+      setToastInfo(false);
+      setDetailHis({ ...detailHis, title } as IVsocStoredConversation);
+      setIsEditDetail(false);
+    } catch (error) {
+      setToastInfo(true);
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div id="main-screen" className="container">
       {!detailHis?.id ? (
         <div id="head-panel" className="head-panel">
-          <p className="title-sidepanel">Chat11111</p>
+          <p className="title-sidepanel">Chat</p>
           <img id="logoIcon" src={require('../assets/images/vSOC-logo.png')} alt="vSOC-logo" />
           <div className="right-btn-row">
             <div className="custom-tooltip" style={{ display: showTooltip ? 'flex' : 'none' }}>
@@ -253,7 +274,7 @@ function MainScreen() {
                 setShowTooltip(false);
               }}
             >
-              <img id="menu-icon" src={require('../assets/images/menu-icon.png')} alt="menu-icon" />
+              <img id="menu-icon-right" src={require('../assets/images/menu-icon.png')} alt="menu-icon" />
             </button>
           </div>
         </div>
@@ -287,7 +308,7 @@ function MainScreen() {
             <div className="right-btn-row">
               <div className="custom-tooltip" style={{ display: showTooltip ? 'flex' : 'none' }}>
                 <div className="content-tooltip">
-                  <p>Tạo chat mới nha</p>
+                  <p>Tạo chat mới</p>
                 </div>
                 <div className="after-tooltip" />
               </div>
@@ -304,8 +325,9 @@ function MainScreen() {
                 onMouseLeave={() => {
                   setShowTooltip(false);
                 }}
+                style={{ marginTop: '3px' }}
               >
-                <img id="menu-icon" src={require('../assets/images/plus-icon.png')} alt="plus-icon" />
+                <img id="menu-icon" src={IconPlus} alt="plus-icon" />
               </button>
             </div>
           </div>
@@ -421,8 +443,19 @@ function MainScreen() {
           isEditingTitle
           widthBox="352px"
           heightBox="172px"
+          isLoadingSave={isSaving}
           onClose={() => {
             setIsEditDetail(false);
+          }}
+          onClick={(arg: string) => handleSaveConvDetail(detailHis.id, arg)}
+        />
+      )}
+      {toastInfo && (
+        <ToastNotification
+          open={toastInfo}
+          message="Xóa hội thoại thất bại"
+          handleClose={() => {
+            setToastInfo(false);
           }}
         />
       )}
