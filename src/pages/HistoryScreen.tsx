@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useHistory } from 'react-router';
 import api from '../api/VsocApi';
 import { IVsocStoredConversation } from '../api/VsocTypes';
@@ -14,15 +14,17 @@ import { deleteConversationAsync, saveConversationAsync } from '../api/conversat
 import LoadingIcon from '../assets/icons/loading-icon.svg';
 import ToastNotification from '../components/ToastNotification';
 import ConfirmationDialog from '../components/ConfirmationDialog';
+import { formattedTime } from '../utils/formatTime';
 
 type ActionState = { type: 'EDIT'; id: string; text: string } | { type: 'DELETE'; id: string; text: string } | null;
 
-const MAX_CHAR_INPUT_LENGTH = 200;
+export const MAX_CHAR_INPUT_LENGTH = 200;
 const MAX_CHAR_DISPLAY_LENGTH = 64;
 
 function HistoryScreen() {
   const history = useHistory();
   const [conversations, setConversations] = useState<IVsocStoredConversation[]>([]);
+  const [conversationTimes, setConversationTimes] = useState<{ id: string; realTime: string }[]>([]);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -32,18 +34,13 @@ function HistoryScreen() {
   const [actionState, setActionState] = useState<ActionState>(null);
 
   const [titles, setTitles] = useState<{ id: string; text: string }[]>([]);
-  console.log('tit', titles);
-
-  console.log('actionState', actionState);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
-  console.log('refss=>', inputRef.current);
 
   const wrapperRef = useRef(null);
   useOutsideClick(
     wrapperRef,
     () => {
-      console.log(wrapperRef.current);
       if (actionState && actionState.type === 'EDIT') {
         const { id, text } = actionState;
         setTitles((prev) => [...prev.filter((item2) => item2.id !== id), { id, text }]);
@@ -54,18 +51,38 @@ function HistoryScreen() {
   );
 
   useEffect(() => {
-    getHistoryConversation();
+    let intervalId: NodeJS.Timeout;
+    const getDataConvs = async () => {
+      const convs = (await getHistoryConversation()) as IVsocStoredConversation[];
+      intervalId = setInterval(() => {
+        const arr: { id: string; realTime: string }[] = [];
+        convs.forEach((item) => {
+          const element: { id: string; realTime: string } = { id: '', realTime: '' };
+          element.id = item.id;
+          element.realTime = formattedTime({ lastUsedTime: item.time });
+          arr.push(element);
+        });
+        setConversationTimes(arr);
+      }, 1);
+    };
+
+    getDataConvs();
+    return () => {
+      console.log('interval', intervalId);
+
+      clearInterval(intervalId);
+    };
   }, []);
 
   const getHistoryConversation = async () => {
     setLoading(true);
     try {
       const data = await api.conversation.listAsync();
-      console.log('conversations', data);
       if (data.result) {
         setConversations(data.result);
         setTitles(data.result.map((conversation) => ({ id: conversation.id, text: conversation.title })));
       }
+      return data.result;
     } catch (error) {
       console.log('error', error);
     } finally {
@@ -94,26 +111,20 @@ function HistoryScreen() {
       e.stopPropagation();
       setIsSaving(true);
 
-      // Giả lập độ trễ
-      const fakeDelay = new Promise((resolve) => setTimeout(resolve, 5000));
+      const data = await saveConversationAsync({
+        conversation_id,
+        title: titles.find((item) => item.id === conversation_id)?.text as string,
+      });
 
-      const data = await Promise.all([
-        saveConversationAsync({
-          conversation_id,
-          title: titles.find((item) => item.id === conversation_id)?.text as string,
-        }),
-        fakeDelay,
-      ]);
       setIsSaving(false);
       setActionState(null);
       setConversations((prev) => {
-        const conversation = prev.find((item) => item.id === data[0]?.result?.id) as IVsocStoredConversation;
-        conversation.title = data[0]?.result?.title as string;
+        const conversation = prev.find((item) => item.id === data?.result?.id) as IVsocStoredConversation;
+        conversation.title = data?.result?.title as string;
         const currentConvs = [...prev.filter((item) => item.id !== conversation.id), conversation];
         currentConvs.sort((a, b) => b.time - a.time);
         return currentConvs;
       });
-      console.log('data save=>', data[0]);
       setToastInfo(false);
     } catch (error) {
       setToastInfo(true);
@@ -125,6 +136,9 @@ function HistoryScreen() {
     try {
       if (actionState && actionState.type === 'DELETE') {
         await deleteConversationAsync({ conversation_id: actionState.id });
+        setConversations((prev) => [...prev.filter((item) => item.id !== actionState.id)]);
+        setActionState(null);
+        setToastInfo(false);
       }
     } catch (error) {
       setToastInfo(true);
@@ -223,13 +237,13 @@ function HistoryScreen() {
                             {item.title.length <= MAX_CHAR_DISPLAY_LENGTH ? item.title : item.title + '...'}
                           </p>
                         )}
-                        <p>{moment(new Date(item.time)).format('HH:mm, DD/MM/YYYY')}</p>
+                        <p>{conversationTimes.find((item2) => item2.id === item.id)?.realTime}</p>
                       </button>
                       <div
                         className="item-his-view-actions"
                         style={{ display: actionState && actionState.id === item.id ? 'none' : '' }}
                       >
-                        <Tippy content="Chỉnh sửa" interactive>
+                        <Tippy content="Chỉnh sửa" placement="top" interactive className="custom-tippy">
                           <img
                             id="edit-icon"
                             src={EditIcon}
@@ -342,7 +356,7 @@ function HistoryScreen() {
           title="Xóa cuộc hội thoại"
           message="Bạn có chắc chắn muốn xoá hội thoại này?"
           onClose={() => setActionState(null)}
-          onDelete={handleClickDelete}
+          onClick={handleClickDelete}
           widthBox="400px"
           heightBox="180px"
         />
