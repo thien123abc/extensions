@@ -49,29 +49,29 @@ function HistoryScreen() {
     'customSnackbar',
   );
 
-  // useEffect(() => {
-  //   let intervalId: NodeJS.Timeout;
-  //   const getDataConvs = async () => {
-  //     const convs = (await getHistoryConversation()) as IVsocStoredConversation[];
-  //     intervalId = setInterval(() => {
-  //       const arr: { id: string; realTime: string }[] = [];
-  //       convs.forEach((item) => {
-  //         const element: { id: string; realTime: string } = { id: '', realTime: '' };
-  //         element.id = item.id;
-  //         element.realTime = formattedTime({ lastUsedTime: item.time });
-  //         arr.push(element);
-  //       });
-  //       setConversationTimes(arr);
-  //     }, 1);
-  //   };
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    const getDataConvs = async () => {
+      const convs = (await getHistoryConversation()) as IVsocStoredConversation[];
+      intervalId = setInterval(() => {
+        const arr: { id: string; realTime: string }[] = [];
+        convs.forEach((item) => {
+          const element: { id: string; realTime: string } = { id: '', realTime: '' };
+          element.id = item.id;
+          element.realTime = formattedTime({ lastUsedTime: item.time });
+          arr.push(element);
+        });
+        setConversationTimes(arr);
+      }, 1);
+    };
 
-  //   getDataConvs();
-  //   return () => {
-  //     console.log('interval', intervalId);
+    getDataConvs();
+    return () => {
+      console.log('interval', intervalId);
 
-  //     clearInterval(intervalId);
-  //   };
-  // }, []);
+      clearInterval(intervalId);
+    };
+  }, []);
 
   const getHistoryConversation = async () => {
     setLoading(true);
