@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useHistory } from 'react-router';
 import api from '../api/VsocApi';
 import { IVsocStoredConversation } from '../api/VsocTypes';
-import moment from 'moment';
 import EditIcon from '../assets/icons/edit-icon.svg';
 import DeleteIcon from '../assets/icons/delete-icon.svg';
 import Button from '@mui/material/Button';
@@ -50,29 +49,29 @@ function HistoryScreen() {
     'customSnackbar',
   );
 
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-    const getDataConvs = async () => {
-      const convs = (await getHistoryConversation()) as IVsocStoredConversation[];
-      intervalId = setInterval(() => {
-        const arr: { id: string; realTime: string }[] = [];
-        convs.forEach((item) => {
-          const element: { id: string; realTime: string } = { id: '', realTime: '' };
-          element.id = item.id;
-          element.realTime = formattedTime({ lastUsedTime: item.time });
-          arr.push(element);
-        });
-        setConversationTimes(arr);
-      }, 1);
-    };
+  // useEffect(() => {
+  //   let intervalId: NodeJS.Timeout;
+  //   const getDataConvs = async () => {
+  //     const convs = (await getHistoryConversation()) as IVsocStoredConversation[];
+  //     intervalId = setInterval(() => {
+  //       const arr: { id: string; realTime: string }[] = [];
+  //       convs.forEach((item) => {
+  //         const element: { id: string; realTime: string } = { id: '', realTime: '' };
+  //         element.id = item.id;
+  //         element.realTime = formattedTime({ lastUsedTime: item.time });
+  //         arr.push(element);
+  //       });
+  //       setConversationTimes(arr);
+  //     }, 1);
+  //   };
 
-    getDataConvs();
-    return () => {
-      console.log('interval', intervalId);
+  //   getDataConvs();
+  //   return () => {
+  //     console.log('interval', intervalId);
 
-      clearInterval(intervalId);
-    };
-  }, []);
+  //     clearInterval(intervalId);
+  //   };
+  // }, []);
 
   const getHistoryConversation = async () => {
     setLoading(true);
@@ -113,11 +112,17 @@ function HistoryScreen() {
 
       const data = await saveConversationAsync({
         conversation_id,
-        title: titles.find((item) => item.id === conversation_id)?.text as string,
+        title: titles.find((item) => item.id === conversation_id)?.text.trim() as string,
       });
+      console.log('data save', data);
 
       setIsSaving(false);
       setActionState(null);
+      setTitles((prev) => {
+        const title = prev.find((item) => item.id === data?.result?.id) as { id: string; text: string };
+        title.text = data?.result?.title.trim() as string;
+        return [...prev.filter((item) => item.id !== title.id), title];
+      });
       setConversations((prev) => {
         const conversation = prev.find((item) => item.id === data?.result?.id) as IVsocStoredConversation;
         conversation.title = data?.result?.title as string;
@@ -145,10 +150,19 @@ function HistoryScreen() {
     }
   };
 
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const handleInputFocus = () => {
+    setIsInputFocused(true);
+  };
+
+  const handleInputBlur = () => {
+    setIsInputFocused(false);
+  };
+
   return (
     <div id="history-screen" className="container">
       <div id="head-panel" className="head-panel">
-        <p className="titles-sidepanel">Lịch sử</p>
+        <p className="title-sidepanel">Lịch sử</p>
         <img id="logoIcon" src={require('../assets/images/vSOC-logo.png')} alt="vSOC-logo" />
         <div className="right-btn-row">
           <div className="custom-tooltip" style={{ display: showTooltip ? 'flex' : 'none' }}>
@@ -181,18 +195,25 @@ function HistoryScreen() {
                       <button
                         className="item-his-view"
                         key={item.id}
-                        onClick={() => {
-                          history.push('/', item);
+                        onClick={(e) => {
+                          if (!isInputFocused) {
+                            console.log('click zooooo');
+                            history.push('/', item); // Nếu input không focus, cho phép click vào button
+                          }
                         }}
                       >
                         {actionState && actionState.id === item.id && actionState.type === 'EDIT' ? (
                           <>
                             <Input
+                              onFocus={handleInputFocus}
+                              onBlur={handleInputBlur}
                               inputRef={inputRef}
                               autoFocus={actionState && actionState.id === item.id}
                               value={titles.find((item2) => item2.id === item.id)?.text}
                               onChange={(e) => {
-                                if (e.target.value.length > MAX_CHAR_INPUT_LENGTH) return;
+                                if (e.target.value.length > MAX_CHAR_INPUT_LENGTH) {
+                                  e.target.value = e.target.value.slice(0, 200);
+                                }
                                 setTitles((prev) => {
                                   if (prev.length > 0) {
                                     if (actionState && actionState.type === 'EDIT') {
@@ -224,7 +245,6 @@ function HistoryScreen() {
                                 style: { height: '28px' },
                               }}
                               disableUnderline
-                              onClick={(e) => e.stopPropagation()}
                             />
                             {titles.find((item2) => item2.id === item.id)?.text.length === 0 && (
                               <FormHelperText style={{ color: 'red', fontSize: '12px' }}>
@@ -234,7 +254,9 @@ function HistoryScreen() {
                           </>
                         ) : (
                           <p className="titles-item-his-view">
-                            {item.title.length <= MAX_CHAR_DISPLAY_LENGTH ? item.title : item.title + '...'}
+                            {item.title.length <= MAX_CHAR_DISPLAY_LENGTH
+                              ? item.title
+                              : item.title.slice(0, 64) + '...'}
                           </p>
                         )}
                         <p>{conversationTimes.find((item2) => item2.id === item.id)?.realTime}</p>
@@ -294,6 +316,12 @@ function HistoryScreen() {
                           <Button
                             sx={{
                               backgroundColor: '#FD2F4A',
+                              opacity:
+                                titles.find((item) => item.id === actionState?.id)?.text.trim() ===
+                                  actionState?.text.trim() ||
+                                titles.find((item2) => item2.id === item.id)?.text.length === 0
+                                  ? 0.7
+                                  : 1,
                             }}
                             disabled={
                               titles.find((item) => item.id === actionState?.id)?.text.trim() ===
