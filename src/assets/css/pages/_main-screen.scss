@@ -287,6 +287,20 @@
           background-color: $primary-input-color;
           max-width: 90%;
           line-height: 24px;
+          position: relative;
+
+          .custom-tippy-like {
+            width: 50px;
+          }
+          .custom-tippy-liked {
+            width: 95px;
+          }
+          .custom-tippy-dislike {
+            width: 95px;
+          }
+          .custom-tippy-disliked {
+            width: 120px;
+          }
         }
 
         .user-item-chat {
