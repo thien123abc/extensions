@@ -4,6 +4,7 @@ import { marked } from 'marked';
 import api from '../api/VsocApi';
 import {
   IChromeMessage,
+  IVsocGetMessageApiArgs,
   IVsocRole,
   IVsocStoredConversation,
   IVsocStoredMessage,
@@ -13,11 +14,19 @@ import '../assets/css/index.scss';
 import config from '../env.json';
 import Tippy from '@tippyjs/react';
 import IconEditDetail from '../assets/icons/icon-edit-detail.svg';
-import { IconButton } from '@mui/material';
+import { Box, IconButton } from '@mui/material';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 import IconPlus from '../assets/icons/icon-plus.svg';
 import ToastNotification from '../components/ToastNotification';
 import { saveConversationAsync } from '../api/conversation';
+import DOMPurify from 'dompurify';
+import IconCopy from '../assets/icons/icon-copy.svg';
+import IconPressed from '../assets/icons/icon-pressed.svg';
+import IconLike from '../assets/icons/icon-like.svg';
+import IconDisLike from '../assets/icons/icon-dislike.svg';
+import IconLiked from '../assets/icons/icon-liked.svg';
+import IconDisLiked from '../assets/icons/icon-disliked.svg';
+import { feedbackMessageAsync, getMessagesApiAsync } from '../api/eventSource';
 
 interface IVsocStoredMessageStore extends IVsocStoredMessage {
   isStored?: boolean;
@@ -38,12 +47,42 @@ function MainScreen() {
   const [isEditDetail, setIsEditDetail] = useState<boolean>(false);
   const [toastInfo, setToastInfo] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [hoverFeeback, setHoverFeedback] = useState<{ msg_id: string; display: 'flex' | 'none' }>();
+  const [msgWidths, setMsgWidths] = useState<{ msg_id: string; width: number; element: HTMLDivElement }[]>([]);
+  const [copiedMessage, setCopiedMessage] = useState<{ [key: string]: boolean }>({});
+  const [timeoutIds, setTimeoutIds] = useState<{ [key: string]: NodeJS.Timeout }>({});
+
+  const messageItemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const feedbackRef = useRef<HTMLDivElement | null>();
 
   chrome?.runtime?.onMessage?.addListener((message: IChromeMessage) => {
     if (message && message.type === 'text_from_monitor') {
       setTextValue(message?.text ?? '');
     }
   });
+
+  useEffect(() => {
+    const listItemsBot = messageItemRefs.current.filter((item) => item?.classList.contains('item-chat'));
+    const itemsInfo = listItemsBot.map((item) => ({
+      msg_id: item?.getAttribute('data-msg_id') as string,
+      width: item?.offsetWidth as number,
+      element: item as HTMLDivElement,
+    }));
+    setMsgWidths(itemsInfo);
+  }, [messages]);
+
+  useEffect(() => {
+    if (hoverFeeback) {
+      const el = msgWidths.find((width) => width.msg_id === hoverFeeback.msg_id);
+      if (el && feedbackRef.current) {
+        if (el.width <= (feedbackRef.current as HTMLDivElement)?.offsetWidth) {
+          (feedbackRef.current as HTMLDivElement).style.left = '30%';
+        } else {
+          (feedbackRef.current as HTMLDivElement).style.right = '14px';
+        }
+      }
+    }
+  }, [hoverFeeback?.msg_id, hoverFeeback?.display, feedbackRef.current]);
 
   useEffect(() => {
     if (location.state?.id) {
@@ -56,6 +95,37 @@ function MainScreen() {
   marked.use({
     silent: true,
   });
+
+  const handleCopy = (messageContent: string, messageId: string) => {
+    navigator.clipboard
+      .writeText(messageContent)
+      .then(() => {
+        // Nếu có timeoutId cũ, hủy bỏ nó
+        if (timeoutIds[messageId]) {
+          clearTimeout(timeoutIds[messageId]);
+        }
+
+        setCopiedMessage((prevState) => ({
+          ...prevState,
+          [messageId]: true,
+        }));
+
+        const timeoutId = setTimeout(() => {
+          setCopiedMessage((prevState) => ({
+            ...prevState,
+            [messageId]: false,
+          }));
+        }, 3000);
+
+        setTimeoutIds((prevState) => ({
+          ...prevState,
+          [messageId]: timeoutId,
+        }));
+      })
+      .catch((err) => {
+        console.error('Lỗi khi sao chép nội dung: ', err);
+      });
+  };
 
   const markdownToHtml = async (markdown: string): Promise<string> => {
     if (!markdown) return '';
@@ -73,6 +143,10 @@ function MainScreen() {
       limit: 30,
     });
     console.log('listMessages ', listMessages);
+
+    const dataMessagesApi = (await getMessagesApiAsync({ conversation_id: id, limit: 30 }))
+      .result as IVsocGetMessageApiArgs[];
+
     if (listMessages.result) {
       const _list: IVsocStoredMessageStore[] = [];
       for (const item of listMessages.result) {
@@ -82,8 +156,20 @@ function MainScreen() {
           message_html: await markdownToHtml(item.message),
         });
       }
-      _list.reverse();
-      setMessages(_list);
+
+      const transformedMessages = _list.map((item, index) => {
+        if (index % 2 === 0)
+          return {
+            ...item,
+            message_id: dataMessagesApi[index / 2].message_id,
+            feedback: dataMessagesApi[index / 2].feedback,
+          };
+        return item;
+      });
+      console.log('feed', transformedMessages);
+
+      transformedMessages.reverse();
+      setMessages(transformedMessages);
       scrollToBottom();
       if (listMessages.result[0]?.action === 'WAIT') {
         setActionMess('WAIT');
@@ -135,13 +221,12 @@ function MainScreen() {
             message: raw,
             message_html: await markdownToHtml(raw),
           };
-          console.log('text convert sau=>', messages[messages.length - 1].message_html);
+          console.log('rawmd=>', raw);
         } else {
           const message: IVsocStoredMessageStore = {
             ...data.result,
             message_html: await markdownToHtml(data.result.message),
           };
-          console.log('text convert ban đầu=>', message.message_html);
 
           messages.push(message);
         }
@@ -336,7 +421,7 @@ function MainScreen() {
       <div className="chat-panel" data-x={forceRenderValue.toString()}>
         {messages.length > 0 ? (
           <div ref={scrollRef} id="text-chat-panel" className="text-chat-panel">
-            {messages.map((item: IVsocStoredMessageStore) => {
+            {messages.map((item: IVsocStoredMessageStore, index) => {
               const inputClass = item.role === 'User' ? 'user-item-chat' : 'item-chat';
               const builtinRoles: Record<string, IVsocRole> = config.builtin_roles;
               const defaultRole: IVsocRole = config.default_role;
@@ -359,6 +444,7 @@ function MainScreen() {
                 raw_html_table += itemText + '</table></div>';
               });
               console.log('raw_html_table', raw_html_table);
+              const sanitizedHtml = DOMPurify.sanitize(raw_html_table);
 
               return (
                 <div
@@ -378,8 +464,136 @@ function MainScreen() {
                       <p style={{ color: colorRole }}>{item.role || 'vSOC'}</p>
                     </div>
                   )}
-                  <div className={inputClass}>
-                    <p className="item-text-chat" dangerouslySetInnerHTML={{ __html: raw_html_table }}></p>
+                  <div
+                    className={inputClass}
+                    ref={(el: HTMLDivElement) => (messageItemRefs.current[index] = el)}
+                    data-msg_id={item?.message_id}
+                    onMouseEnter={() => {
+                      setHoverFeedback({ msg_id: item.message_id as string, display: 'flex' });
+                    }}
+                    onMouseLeave={() => {
+                      console.log('thoat msg');
+                      setHoverFeedback({ msg_id: item.message_id as string, display: 'none' });
+                    }}
+                  >
+                    <p className="item-text-chat" dangerouslySetInnerHTML={{ __html: sanitizedHtml }}></p>
+                    {inputClass === 'item-chat' && hoverFeeback && hoverFeeback.msg_id === item.message_id && (
+                      <Box
+                        ref={feedbackRef}
+                        sx={{
+                          display: hoverFeeback.display,
+                          padding: '4px',
+                          width: '78px',
+                          height: '22px',
+                          border: '1px solid rgba(255, 255, 255, 0.12)',
+                          borderRadius: '4px',
+                          backgroundColor: '#3D3D43',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          position: 'absolute',
+                          bottom: '-22px',
+                        }}
+                      >
+                        <Tippy
+                          content={copiedMessage[item.message_id] ? 'Pressed' : 'Copy'}
+                          interactive
+                          placement="bottom"
+                        >
+                          <IconButton
+                            sx={{ padding: 0 }}
+                            onClick={() => handleCopy(item.message, item.message_id as string)}
+                          >
+                            {copiedMessage[item.message_id] ? (
+                              <img src={IconPressed} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                            ) : (
+                              <img src={IconCopy} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                            )}
+                          </IconButton>
+                        </Tippy>
+                        <Tippy
+                          content={
+                            item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'like'
+                              ? 'Phản hồi tốt'
+                              : 'Thích'
+                          }
+                          interactive
+                          placement="bottom"
+                          className={
+                            item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'like'
+                              ? 'custom-tippy-liked'
+                              : 'custom-tippy-like'
+                          }
+                        >
+                          <IconButton
+                            sx={{ padding: 0 }}
+                            onClick={async () => {
+                              await feedbackMessageAsync({
+                                message_id: item.message_id as string,
+                                rating: item.feedback?.rating === 'like' ? null : 'like',
+                              });
+                              const feedbackMsg = messages.find(
+                                (msg) => msg.message_id === hoverFeeback.msg_id,
+                              ) as IVsocStoredMessageStore;
+                              if (item.feedback?.rating === 'like') feedbackMsg.feedback = null;
+                              else feedbackMsg.feedback = { rating: 'like' };
+                              const findFeedbackMsg = messages.findIndex(
+                                (msg) => msg.message_id === hoverFeeback.msg_id,
+                              );
+                              if (findFeedbackMsg !== -1) messages.splice(findFeedbackMsg, 1, feedbackMsg);
+
+                              setMessages([...messages]);
+                            }}
+                          >
+                            {item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'like' ? (
+                              <img src={IconLiked} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                            ) : (
+                              <img src={IconLike} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                            )}
+                          </IconButton>
+                        </Tippy>
+                        <Tippy
+                          content={
+                            item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'dislike'
+                              ? 'Phản hồi không tốt'
+                              : 'Không thích'
+                          }
+                          interactive
+                          placement="bottom"
+                          className={
+                            item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'dislike'
+                              ? 'custom-tippy-disliked'
+                              : 'custom-tippy-dislike'
+                          }
+                        >
+                          <IconButton
+                            sx={{ padding: 0 }}
+                            onClick={async () => {
+                              await feedbackMessageAsync({
+                                message_id: item.message_id as string,
+                                rating: item.feedback?.rating === 'dislike' ? null : 'dislike',
+                              });
+                              const feedbackMsg = messages.find(
+                                (msg) => msg.message_id === hoverFeeback.msg_id,
+                              ) as IVsocStoredMessageStore;
+                              if (item.feedback?.rating === 'dislike') feedbackMsg.feedback = null;
+                              else feedbackMsg.feedback = { rating: 'dislike' };
+                              const findFeedbackMsg = messages.findIndex(
+                                (msg) => msg.message_id === hoverFeeback.msg_id,
+                              );
+                              if (findFeedbackMsg !== -1) messages.splice(findFeedbackMsg, 1, feedbackMsg);
+
+                              setMessages([...messages]);
+                            }}
+                          >
+                            {item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'dislike' ? (
+                              <img src={IconDisLiked} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                            ) : (
+                              <img src={IconDisLike} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                            )}
+                          </IconButton>
+                        </Tippy>
+                      </Box>
+                    )}
                   </div>
                 </div>
               );
