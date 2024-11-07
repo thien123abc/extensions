@@ -27,6 +27,12 @@ export interface IVsocCreateConversationResult {
 export interface IVsocGetNextMessageArgs {
   conversation_id: string;
 }
+export interface IVsocGetMessageApiArgs {
+  conversation_id: string;
+  message_id: string;
+  answer: string;
+  feedback: { rating: 'like' | 'dislike' } | null;
+}
 
 export interface IVsocGetNextMessageResult extends IVsocStoredMessage {
   role: string;
@@ -43,6 +49,8 @@ export interface IVsocStoredMessage {
   message: string;
   type: VsocMessageType;
   time: number;
+  message_id?: string;
+  feedback?: { rating: 'like' | 'dislike' } | null;
 }
 
 export interface IVsocStoreConversationArgs {
@@ -103,4 +111,14 @@ export interface IVsocRole {
   color: string;
   avatar: string;
   background_color: string;
+}
+
+export interface IVsocMessageApiResponse {
+  answer?: string;
+  conversation_id: string;
+  created_at?: number;
+  error?: string;
+  feedback?: { rating: 'like' | 'dislike' } | null;
+  id: string;
+  query?: string;
 }
