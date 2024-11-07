@@ -2,8 +2,11 @@ import {
   IVsocApiResult,
   IVsocCreateConversationArgs,
   IVsocCreateConversationResult,
+  IVsocGetMessageApiArgs,
   IVsocGetNextMessageArgs,
   IVsocGetNextMessageResult,
+  IVsocMessageApiResponse,
+  IVsocMessageQuery,
   IVsocSendMessageArgs,
 } from './VsocTypes';
 import config from '../env.json';
@@ -11,16 +14,19 @@ import config from '../env.json';
 async function* getAllTextLinesIterator(url: string, options: RequestInit) {
   const utf8Decoder = new TextDecoder('utf-8');
   const response = await fetch(url, options);
+
   if (!response.body) return;
   const reader = response.body.getReader();
   let { value: byteArray, done: readerDone } = await reader.read();
   let chunk = byteArray ? utf8Decoder.decode(byteArray, { stream: true }) : '';
+  console.log('chunk', JSON.stringify(chunk));
 
   const re = /\r\n|\n|\r/gm;
   let startIndex = 0;
 
-  for (;;) {
+  for (let i = 0; ; i++) {
     const result = re.exec(chunk);
+    console.log('result' + i + '=>', result);
     if (!result) {
       if (readerDone) {
         break;
@@ -115,7 +121,8 @@ const markDifyResponseEnd = (conversationId: string, lastRoleInMessage: string, 
     message: '',
   };
   conversationHub[conversationId].push(msg);
-  console.log('received finnal message: ', msg);
+  console.log('finnal: ', conversationHub[conversationId][0]);
+  // localStorage.listCon=conversationHub[conversationId]
 };
 
 type RoleInfo = {
@@ -163,8 +170,10 @@ const connectToBotAsync = (arg: IVsocCreateConversationArgs | IVsocSendMessageAr
           'Content-Type': 'application/json',
         },
       };
-
+      let index = 0;
       for await (const line of getAllTextLinesIterator(fetchUrl, fetchOptions)) {
+        console.log('line' + index + '=>', line);
+        index++;
         const evt = parseDifyMesssage(line);
         if (!evt) continue;
         if (!conversationId && evt.conversation_id) {
@@ -192,9 +201,10 @@ const connectToBotAsync = (arg: IVsocCreateConversationArgs | IVsocSendMessageAr
           time: new Date().getTime(),
           role: roleInfo.currentRole,
           message: evt.answer as string,
+          message_id: evt.message_id,
         };
+        console.log('hiện tại=> ', msg);
         conversationHub[conversationId].push(msg);
-        console.log('received message: ', msg);
         roleInfo.lastRoleInMessage = roleInfo.currentRole;
       }
     } catch (ex) {
@@ -231,4 +241,59 @@ export const getNextMessageAsync = (arg: IVsocGetNextMessageArgs) => {
       result: message,
     });
   });
+};
+
+export const getMessagesApiAsync = async (
+  arg: IVsocMessageQuery,
+): Promise<IVsocApiResult<IVsocGetMessageApiArgs[]>> => {
+  const limit = !arg.limit || arg.limit < 0 ? 20 : arg.limit;
+  const params = new URLSearchParams({
+    conversation_id: arg.conversation_id || '',
+    limit: limit.toString(),
+  });
+  const response = await fetch(`${config.vsoc_api_url}/api/messages?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${localStorage.bot_token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  const body = await response.json();
+  const result = (body.data as IVsocMessageApiResponse[]).map((conv) => {
+    return {
+      message_id: conv.id,
+      conversation_id: conv.conversation_id,
+      answer: conv.answer,
+      feedback: conv.feedback,
+    } as IVsocGetMessageApiArgs;
+  });
+  console.log('ok', result);
+
+  return {
+    status: 0,
+    result: result,
+  };
+};
+
+export const feedbackMessageAsync = async (arg: {
+  message_id: string;
+  rating: 'like' | 'dislike' | null;
+}): Promise<IVsocApiResult<string>> => {
+  const response = await fetch(`${config.vsoc_api_url}/api/messages/${arg.message_id}/feedbacks`, {
+    method: 'POST',
+    body: JSON.stringify({
+      rating: arg.rating,
+    }),
+    headers: {
+      Authorization: `Bearer ${localStorage.bot_token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  const body = await response.json();
+  console.log('body', body);
+
+  return {
+    status: 0,
+    result: 'ok',
+  };
 };
