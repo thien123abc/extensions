@@ -289,17 +289,12 @@
           line-height: 24px;
           position: relative;
 
-          .custom-tippy-like {
-            width: 50px;
-          }
           .custom-tippy-liked {
             width: 95px;
           }
-          .custom-tippy-dislike {
-            width: 95px;
-          }
+
           .custom-tippy-disliked {
-            width: 120px;
+            width: 140px;
           }
         }
 
@@ -381,6 +376,7 @@
 
           &.disable-button {
             opacity: 0.4;
+            cursor: default;
           }
         }
       }
