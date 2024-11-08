@@ -43,7 +43,7 @@ export const listConversationAsync = async (
 export const saveConversationAsync = async (
   arg: Required<IVsocStoreConversationArgs>,
 ): Promise<IVsocApiResult<IVsocStoredConversation>> => {
-  const response = await fetch(`${config.vsoc_api_url}/api/conversations/${arg.conversation_id}/name`, {
+  const response = await fetch(`${config.vsoc_api_url}/api/conversations1/${arg.conversation_id}/name`, {
     method: 'POST',
     body: JSON.stringify({
       name: arg.title,
@@ -61,7 +61,7 @@ export const saveConversationAsync = async (
 };
 
 export const deleteConversationAsync = async (arg: IVsocStoreConversationArgs): Promise<IVsocApiResult<string>> => {
-  await fetch(`${config.vsoc_api_url}/api/conversations/${arg.conversation_id}`, {
+  await fetch(`${config.vsoc_api_url}/api/conversations1/${arg.conversation_id}`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${localStorage.bot_token}`,
