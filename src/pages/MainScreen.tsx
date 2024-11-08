@@ -27,6 +27,11 @@ import IconDisLike from '../assets/icons/icon-dislike.svg';
 import IconLiked from '../assets/icons/icon-liked.svg';
 import IconDisLiked from '../assets/icons/icon-disliked.svg';
 import { feedbackMessageAsync, getMessagesApiAsync } from '../api/eventSource';
+import IcondSendActive from '../assets/icons/icon-send-active.svg';
+import ErrorIcon from '../assets/icons/icon-close-red.svg';
+import AlertIcon from '../assets/icons/icon-alert.svg';
+
+const MAX_CHAR_DISPLAY_LENGTH = 34;
 
 interface IVsocStoredMessageStore extends IVsocStoredMessage {
   isStored?: boolean;
@@ -47,6 +52,7 @@ function MainScreen() {
   const [isEditDetail, setIsEditDetail] = useState<boolean>(false);
   const [toastInfo, setToastInfo] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [feebackResponse, setFeedbackResponse] = useState(false);
   const [hoverFeeback, setHoverFeedback] = useState<{ msg_id: string; display: 'flex' | 'none' }>();
   const [msgWidths, setMsgWidths] = useState<{ msg_id: string; width: number; element: HTMLDivElement }[]>([]);
   const [copiedMessage, setCopiedMessage] = useState<{ [key: string]: boolean }>({});
@@ -68,12 +74,14 @@ function MainScreen() {
       width: item?.offsetWidth as number,
       element: item as HTMLDivElement,
     }));
+
     setMsgWidths(itemsInfo);
-  }, [messages]);
+  }, [messages.length, forceRenderValue, actionMess, hoverFeeback?.msg_id]);
 
   useEffect(() => {
     if (hoverFeeback) {
       const el = msgWidths.find((width) => width.msg_id === hoverFeeback.msg_id);
+
       if (el && feedbackRef.current) {
         if (el.width <= (feedbackRef.current as HTMLDivElement)?.offsetWidth) {
           (feedbackRef.current as HTMLDivElement).style.left = '30%';
@@ -142,7 +150,7 @@ function MainScreen() {
       conversation_id: id,
       limit: 30,
     });
-    console.log('listMessages ', listMessages);
+    console.log('listMessages', listMessages);
 
     const dataMessagesApi = (await getMessagesApiAsync({ conversation_id: id, limit: 30 }))
       .result as IVsocGetMessageApiArgs[];
@@ -230,6 +238,8 @@ function MainScreen() {
 
           messages.push(message);
         }
+        console.log('cam=>', messages);
+        setMessages([...messages]);
         setForceRenderValue((prev) => prev + 1);
         scrollToBottom();
         setActionMess(data.result.action);
@@ -335,6 +345,26 @@ function MainScreen() {
     }
   };
 
+  const handleFeedback = async (rating: 'like' | 'dislike' | null, message_id: string) => {
+    try {
+      await feedbackMessageAsync({
+        message_id,
+        rating,
+      });
+      const feedbackMsg = messages.find((msg) => msg.message_id === message_id) as IVsocStoredMessageStore;
+      if (rating === null) feedbackMsg.feedback = null;
+      else feedbackMsg.feedback = { rating };
+      const findFeedbackMsg = messages.findIndex((msg) => msg.message_id === message_id);
+      if (findFeedbackMsg !== -1) messages.splice(findFeedbackMsg, 1, feedbackMsg);
+      setMessages([...messages]);
+      setFeedbackResponse(false);
+      setToastInfo(false);
+    } catch (error) {
+      setFeedbackResponse(true);
+      setToastInfo(true);
+    }
+  };
+
   return (
     <div id="main-screen" className="container">
       {!detailHis?.id ? (
@@ -366,14 +396,21 @@ function MainScreen() {
       ) : (
         <div id="head-panel-detail" className="head-panel">
           <div className="back-title">
-            <button
-              onClick={() => {
-                history.push('/history');
-              }}
-            >
-              <img id="menu-icon" src={require('../assets/images/back-icon.png')} alt="back-icon" />
-            </button>
-            <p>{detailHis?.title}</p>
+            <Tippy content="Quay lại" interactive placement="bottom">
+              <button
+                onClick={() => {
+                  history.push('/history');
+                }}
+              >
+                <img id="menu-icon" src={require('../assets/images/back-icon.png')} alt="back-icon" />
+              </button>
+            </Tippy>
+            <p>
+              {' '}
+              {detailHis?.title.length <= MAX_CHAR_DISPLAY_LENGTH
+                ? detailHis?.title
+                : detailHis?.title.slice(0, MAX_CHAR_DISPLAY_LENGTH) + '...'}
+            </p>
           </div>
           <div className="detail-action-buttons">
             <Tippy content="Đổi tên" interactive>
@@ -386,6 +423,8 @@ function MainScreen() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setIsEditDetail(true);
+                    setFeedbackResponse(false);
+                    setToastInfo(false);
                   }}
                 />
               </IconButton>
@@ -477,123 +516,83 @@ function MainScreen() {
                     }}
                   >
                     <p className="item-text-chat" dangerouslySetInnerHTML={{ __html: sanitizedHtml }}></p>
-                    {inputClass === 'item-chat' && hoverFeeback && hoverFeeback.msg_id === item.message_id && (
-                      <Box
-                        ref={feedbackRef}
-                        sx={{
-                          display: hoverFeeback.display,
-                          padding: '4px',
-                          width: '78px',
-                          height: '22px',
-                          border: '1px solid rgba(255, 255, 255, 0.12)',
-                          borderRadius: '4px',
-                          backgroundColor: '#3D3D43',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          position: 'absolute',
-                          bottom: '-22px',
-                        }}
-                      >
-                        <Tippy
-                          content={copiedMessage[item.message_id] ? 'Pressed' : 'Copy'}
-                          interactive
-                          placement="bottom"
+                    {inputClass === 'item-chat' &&
+                      hoverFeeback &&
+                      hoverFeeback.msg_id === item.message_id &&
+                      item.action === 'DONE' && (
+                        <Box
+                          ref={feedbackRef}
+                          sx={{
+                            display: hoverFeeback.display,
+                            padding: '4px',
+                            width: '78px',
+                            height: '22px',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            borderRadius: '4px',
+                            backgroundColor: '#3D3D43',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            position: 'absolute',
+                            bottom: '-22px',
+                          }}
                         >
-                          <IconButton
-                            sx={{ padding: 0 }}
-                            onClick={() => handleCopy(item.message, item.message_id as string)}
+                          <Tippy
+                            content={copiedMessage[item.message_id] ? 'Pressed' : 'Copy'}
+                            interactive
+                            placement="bottom"
                           >
-                            {copiedMessage[item.message_id] ? (
-                              <img src={IconPressed} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
-                            ) : (
-                              <img src={IconCopy} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
-                            )}
-                          </IconButton>
-                        </Tippy>
-                        <Tippy
-                          content={
-                            item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'like'
-                              ? 'Phản hồi tốt'
-                              : 'Thích'
-                          }
-                          interactive
-                          placement="bottom"
-                          className={
-                            item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'like'
-                              ? 'custom-tippy-liked'
-                              : 'custom-tippy-like'
-                          }
-                        >
-                          <IconButton
-                            sx={{ padding: 0 }}
-                            onClick={async () => {
-                              await feedbackMessageAsync({
-                                message_id: item.message_id as string,
-                                rating: item.feedback?.rating === 'like' ? null : 'like',
-                              });
-                              const feedbackMsg = messages.find(
-                                (msg) => msg.message_id === hoverFeeback.msg_id,
-                              ) as IVsocStoredMessageStore;
-                              if (item.feedback?.rating === 'like') feedbackMsg.feedback = null;
-                              else feedbackMsg.feedback = { rating: 'like' };
-                              const findFeedbackMsg = messages.findIndex(
-                                (msg) => msg.message_id === hoverFeeback.msg_id,
-                              );
-                              if (findFeedbackMsg !== -1) messages.splice(findFeedbackMsg, 1, feedbackMsg);
-
-                              setMessages([...messages]);
-                            }}
+                            <IconButton
+                              sx={{ padding: 0 }}
+                              onClick={() => handleCopy(item.message, item.message_id as string)}
+                            >
+                              {copiedMessage[item.message_id] ? (
+                                <img src={IconPressed} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                              ) : (
+                                <img src={IconCopy} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                              )}
+                            </IconButton>
+                          </Tippy>
+                          <Tippy content="Phản hồi tốt" interactive placement="bottom" className="custom-tippy-liked">
+                            <IconButton
+                              sx={{ padding: 0 }}
+                              onClick={() =>
+                                handleFeedback(
+                                  item.feedback?.rating === 'like' ? null : 'like',
+                                  item.message_id as string,
+                                )
+                              }
+                            >
+                              {item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'like' ? (
+                                <img src={IconLiked} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                              ) : (
+                                <img src={IconLike} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                              )}
+                            </IconButton>
+                          </Tippy>
+                          <Tippy
+                            content="Phản hồi không tốt"
+                            interactive
+                            placement="bottom"
+                            className="custom-tippy-disliked"
                           >
-                            {item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'like' ? (
-                              <img src={IconLiked} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
-                            ) : (
-                              <img src={IconLike} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
-                            )}
-                          </IconButton>
-                        </Tippy>
-                        <Tippy
-                          content={
-                            item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'dislike'
-                              ? 'Phản hồi không tốt'
-                              : 'Không thích'
-                          }
-                          interactive
-                          placement="bottom"
-                          className={
-                            item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'dislike'
-                              ? 'custom-tippy-disliked'
-                              : 'custom-tippy-dislike'
-                          }
-                        >
-                          <IconButton
-                            sx={{ padding: 0 }}
-                            onClick={async () => {
-                              await feedbackMessageAsync({
-                                message_id: item.message_id as string,
-                                rating: item.feedback?.rating === 'dislike' ? null : 'dislike',
-                              });
-                              const feedbackMsg = messages.find(
-                                (msg) => msg.message_id === hoverFeeback.msg_id,
-                              ) as IVsocStoredMessageStore;
-                              if (item.feedback?.rating === 'dislike') feedbackMsg.feedback = null;
-                              else feedbackMsg.feedback = { rating: 'dislike' };
-                              const findFeedbackMsg = messages.findIndex(
-                                (msg) => msg.message_id === hoverFeeback.msg_id,
-                              );
-                              if (findFeedbackMsg !== -1) messages.splice(findFeedbackMsg, 1, feedbackMsg);
-
-                              setMessages([...messages]);
-                            }}
-                          >
-                            {item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'dislike' ? (
-                              <img src={IconDisLiked} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
-                            ) : (
-                              <img src={IconDisLike} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
-                            )}
-                          </IconButton>
-                        </Tippy>
-                      </Box>
-                    )}
+                            <IconButton
+                              sx={{ padding: 0 }}
+                              onClick={() =>
+                                handleFeedback(
+                                  item.feedback?.rating === 'dislike' ? null : 'dislike',
+                                  item.message_id as string,
+                                )
+                              }
+                            >
+                              {item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'dislike' ? (
+                                <img src={IconDisLiked} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                              ) : (
+                                <img src={IconDisLike} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                              )}
+                            </IconButton>
+                          </Tippy>
+                        </Box>
+                      )}
                   </div>
                 </div>
               );
@@ -639,14 +638,20 @@ function MainScreen() {
                 }
               }}
             />
-            <button
-              className={actionMess === 'WAIT' || !textValue.trim() ? 'disable-button' : ''}
-              disabled={actionMess === 'WAIT' || !textValue.trim()}
-              id="send-text"
-              onClick={sendMessages}
-            >
-              <img id="send-icon" src={require('../assets/images/send-icon.png')} alt="send-icon" />
-            </button>
+            <Tippy content="Gửi" interactive placement="top">
+              <button
+                className={actionMess === 'WAIT' || !textValue.trim() ? 'disable-button' : ''}
+                disabled={actionMess === 'WAIT' || !textValue.trim()}
+                id="send-text"
+                onClick={sendMessages}
+              >
+                {actionMess !== 'WAIT' && textValue.trim() ? (
+                  <img id="send-icon" src={IcondSendActive} alt="send-icon" />
+                ) : (
+                  <img id="send-icon" src={require('../assets/images/send-icon.png')} alt="send-icon" />
+                )}
+              </button>
+            </Tippy>
           </div>
         </div>
       </div>
@@ -666,8 +671,12 @@ function MainScreen() {
       )}
       {toastInfo && (
         <ToastNotification
+          height={feebackResponse ? 56 : 40}
+          width={feebackResponse ? 351 : 288}
+          icon={feebackResponse ? AlertIcon : ErrorIcon}
+          bg={feebackResponse ? '#C95859' : '#303036'}
           open={toastInfo}
-          message="Xóa hội thoại thất bại"
+          message={feebackResponse ? 'Đánh giá phản hồi chưa được ghi nhận, vui lòng thử lại' : 'Đổi tên thất bại'}
           handleClose={() => {
             setToastInfo(false);
           }}
