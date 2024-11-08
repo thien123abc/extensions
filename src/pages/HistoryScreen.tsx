@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useHistory } from 'react-router';
 import api from '../api/VsocApi';
-import { IVsocStoredConversation } from '../api/VsocTypes';
+import { IVsocGetMessageApiArgs, IVsocStoredConversation } from '../api/VsocTypes';
 import EditIcon from '../assets/icons/edit-icon.svg';
 import DeleteIcon from '../assets/icons/delete-icon.svg';
 import Button from '@mui/material/Button';
@@ -35,8 +35,10 @@ function HistoryScreen() {
   const [actionState, setActionState] = useState<ActionState>(null);
 
   const [titles, setTitles] = useState<{ id: string; text: string }[]>([]);
+  const [lastMessageTimes, setLastMessageTimes] = useState<{ conv_id: string; lastMsgTime: number }[]>([]);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const isDataReadyRef = useRef(false);
 
   const wrapperRef = useRef(null);
   useOutsideClick(
@@ -53,28 +55,47 @@ function HistoryScreen() {
   );
 
   useEffect(() => {
+    getHistoryConversation();
+  }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      if (lastMessageTimes.length > 0 && conversations.length === lastMessageTimes.length) {
+        console.log('last', lastMessageTimes);
+
+        const cloneConvs = conversations.map((item) => {
+          const matchConv = lastMessageTimes.find((time) => item.id === time.conv_id);
+          return matchConv ? { ...item, time: matchConv.lastMsgTime } : item;
+        });
+        cloneConvs.sort((a, b) => b.time - a.time);
+        setConversations(cloneConvs);
+        isDataReadyRef.current = true;
+      }
+    }
+  }, [loading, lastMessageTimes.length]);
+  console.log('done', isDataReadyRef.current);
+
+  useEffect(() => {
     let intervalId: NodeJS.Timeout;
-    const getDataConvs = async () => {
-      const convs = (await getHistoryConversation()) as IVsocStoredConversation[];
+    if (isDataReadyRef.current) {
       intervalId = setInterval(() => {
         const arr: { id: string; realTime: string }[] = [];
-        convs.forEach((item) => {
+        lastMessageTimes.forEach((item) => {
           const element: { id: string; realTime: string } = { id: '', realTime: '' };
-          element.id = item.id;
-          element.realTime = formattedTime({ lastUsedTime: item.time });
+          element.id = item.conv_id;
+          element.realTime = formattedTime({ lastUsedTime: item.lastMsgTime * 1000 });
           arr.push(element);
         });
+
         setConversationTimes(arr);
       }, 1);
-    };
-
-    getDataConvs();
+    }
     return () => {
       console.log('interval', intervalId);
 
       clearInterval(intervalId);
     };
-  }, []);
+  }, [isDataReadyRef.current]);
 
   const getHistoryConversation = async () => {
     setLoading(true);
@@ -82,12 +103,17 @@ function HistoryScreen() {
       const data = await api.conversation.listAsync();
       if (data.result) {
         data.result.forEach(async (conversation) => {
-          const a = (await getMessagesApiAsync({ conversation_id: conversation.id })).result;
-          console.log('=>', a);
+          const { conversation_id: conv_id, created_at: lastMsgTime } = (
+            await getMessagesApiAsync({ conversation_id: conversation.id })
+          ).result?.[0] as IVsocGetMessageApiArgs;
+
+          setLastMessageTimes((prev) => [...prev, { conv_id, lastMsgTime }]);
         });
+
         setConversations(data.result);
         setTitles(data.result.map((conversation) => ({ id: conversation.id, text: conversation.title })));
       }
+      setLoading(false);
       return data.result;
     } catch (error) {
       console.log('error', error);
@@ -192,7 +218,7 @@ function HistoryScreen() {
         </div>
       </div>
       <div className="body-panel">
-        {!loading ? (
+        {!loading && conversationTimes.length ? (
           conversations.length > 0 ? (
             <div className="his-chat-panel">
               <div className="chat-panel-container" ref={wrapperRef}>
