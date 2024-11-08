@@ -57,6 +57,7 @@ function MainScreen() {
   const [msgWidths, setMsgWidths] = useState<{ msg_id: string; width: number; element: HTMLDivElement }[]>([]);
   const [copiedMessage, setCopiedMessage] = useState<{ [key: string]: boolean }>({});
   const [timeoutIds, setTimeoutIds] = useState<{ [key: string]: NodeJS.Timeout }>({});
+  const [errorMessage, setErrorMessage] = useState('');
 
   const messageItemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const feedbackRef = useRef<HTMLDivElement | null>();
@@ -238,8 +239,17 @@ function MainScreen() {
 
           messages.push(message);
         }
-        console.log('cam=>', messages);
-        setMessages([...messages]);
+
+        const arr: any = [];
+        for (let i = 0; i < messages.length; i++) {
+          arr.push(messages[i]);
+          if (arr.length > 1) {
+            arr[arr.length - 2] = arr[arr.length - 2].replace('!', '');
+          }
+          arr[arr.length - 1] += '!';
+        }
+
+        setMessages([...arr]);
         setForceRenderValue((prev) => prev + 1);
         scrollToBottom();
         setActionMess(data.result.action);
@@ -365,6 +375,87 @@ function MainScreen() {
     }
   };
 
+  // Các regex kiểm tra các tệp không hợp lệ
+  const fileTypeRegex =
+    /(\.(jpg|jpeg|png|webp|gif|tiff|psd|pdf|eps|avi|mp4|wmv|mkv|vob|divx|flv|h263|h264|wmv9|mpeg|3gp|webm|mp3|wma|wav|flac|ogg|pcm|aiff|alac|amr|lossless|midi|wma9|ac3|aac|mp2|docx|xlsx|pptx|txt|xls)$|^(text\/plain|application\/msword|application\/vnd.openxmlformats-officedocument.wordprocessingml.document|application\/vnd.ms-excel|application\/vnd.openxmlformats-officedocument.spreadsheetml.sheet))$/i;
+  // Chặn thao tác kéo thả (drag and drop)
+  const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault(); // Chặn hành động mặc định của trình duyệt (không tải tệp xuống)
+    const files = e.dataTransfer.files;
+
+    if (files.length > 0) {
+      const file = files[0];
+      const fileType = file.type; // Lấy MIME type của tệp
+      const fileName = file.name; // Lấy tên tệp
+
+      // Kiểm tra tệp với regex đã gộp
+      if (fileTypeRegex.test(fileName) || fileTypeRegex.test(fileType)) {
+        setErrorMessage('Không cho phép kéo thả tệp vào ô nhập liệu' + fileName);
+        setToastInfo(true);
+      } else {
+        setErrorMessage('');
+        setToastInfo(false);
+      }
+    }
+  };
+
+  // Chặn thao tác paste các tệp
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pastedData = event.clipboardData.items;
+    for (let i = 0; i < pastedData.length; i++) {
+      const item = pastedData[i];
+      if (item.kind === 'file') {
+        const fileType = item.type; // Lấy MIME type
+        const fileName = item.getAsFile()?.name || ''; // Lấy tên tệp nếu có
+
+        // Kiểm tra phần mở rộng của tệp từ tên tệp và MIME type
+        if (fileTypeRegex.test(fileName) || fileTypeRegex.test(fileType)) {
+          event.preventDefault(); // Không cho phép dán tệp không hợp lệ
+          setErrorMessage('Không được dán tệp có định dạng không hợp lệ.' + fileName);
+          setToastInfo(true);
+          return;
+        }
+      }
+    }
+    setErrorMessage('');
+    setToastInfo(false);
+  };
+  // Regex chỉ cho phép nhập chữ, số và một số ký tự đặc biệt
+  const validCharRegex = /^[a-zA-Z0-9.,?!:;'"()&%-\s]*$/;
+
+  // Chặn việc nhập các ký tự không phải là chữ cái và số
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Kiểm tra ký tự nhập vào có hợp lệ không
+    // if (!validCharRegex.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete') {
+    //   e.preventDefault(); // Nếu không hợp lệ, chặn lại
+    //   setErrorMessage('Chỉ được nhập chữ, ký tự và số.');
+    //   setToastInfo(true);
+    //   return;
+    // } else {
+    //   setToastInfo(false);
+    //   setErrorMessage(''); // Nếu hợp lệ, xóa lỗi
+    // }
+
+    // Xử lý khi nhấn Enter
+    if (e.key === 'Enter') {
+      if (e.ctrlKey && textValue.trim()) {
+        setTextValue(textValue + '\n'); // Ctrl+Enter xuống dòng
+      } else {
+        // Nếu actionMess là 'WAIT', không cho phép gửi tin nhắn
+        if (actionMess === 'WAIT') {
+          e.preventDefault();
+          return false; // Chặn gửi tin nhắn
+        }
+
+        // Gửi tin nhắn và reset lại ô nhập liệu
+        setTimeout(async () => {
+          setTextValue('');
+          await sendMessages();
+        }, 200);
+      }
+    }
+  };
+
   return (
     <div id="main-screen" className="container">
       {!detailHis?.id ? (
@@ -461,6 +552,8 @@ function MainScreen() {
         {messages.length > 0 ? (
           <div ref={scrollRef} id="text-chat-panel" className="text-chat-panel">
             {messages.map((item: IVsocStoredMessageStore, index) => {
+              console.log('item', item);
+
               const inputClass = item.role === 'User' ? 'user-item-chat' : 'item-chat';
               const builtinRoles: Record<string, IVsocRole> = config.builtin_roles;
               const defaultRole: IVsocRole = config.default_role;
@@ -515,7 +608,7 @@ function MainScreen() {
                       setHoverFeedback({ msg_id: item.message_id as string, display: 'none' });
                     }}
                   >
-                    <p className="item-text-chat" dangerouslySetInnerHTML={{ __html: sanitizedHtml }}></p>
+                    <p className="item-text-chat" dangerouslySetInnerHTML={{ __html: sanitizedHtml + '=>' }}></p>
                     {inputClass === 'item-chat' &&
                       hoverFeeback &&
                       hoverFeeback.msg_id === item.message_id &&
@@ -607,11 +700,11 @@ function MainScreen() {
             </p>
           </div>
         )}
-        {actionMess === 'WAIT' ? (
-          <p className="typing-text">
-            typing <span className="cursor"></span>
-          </p>
-        ) : null}
+        {/* {actionMess === 'WAIT' ? ( */}
+        <p className="typing-text">
+          <span className="cursor"></span>
+        </p>
+        {/* ) : null} */}
         <div className="input-chat">
           <div className="view-chat">
             <textarea
@@ -621,23 +714,11 @@ function MainScreen() {
               onChange={(e) => {
                 setTextValue(e.target.value);
               }}
-              onKeyDown={async (e) => {
-                if (e.key == 'Enter') {
-                  if (e.ctrlKey && textValue.trim()) {
-                    setTextValue(textValue + '\n');
-                  } else {
-                    if (actionMess === 'WAIT') {
-                      e.preventDefault();
-                      return false;
-                    }
-                    setTimeout(() => {
-                      setTextValue('');
-                    }, 200);
-                    await sendMessages();
-                  }
-                }
-              }}
+              onDrop={handleDrop}
+              onPaste={handlePaste}
+              onKeyDown={handleKeyDown}
             />
+
             <Tippy content="Gửi" interactive placement="top">
               <button
                 className={actionMess === 'WAIT' || !textValue.trim() ? 'disable-button' : ''}
@@ -676,9 +757,16 @@ function MainScreen() {
           icon={feebackResponse ? AlertIcon : ErrorIcon}
           bg={feebackResponse ? '#C95859' : '#303036'}
           open={toastInfo}
-          message={feebackResponse ? 'Đánh giá phản hồi chưa được ghi nhận, vui lòng thử lại' : 'Đổi tên thất bại'}
+          message={
+            feebackResponse
+              ? 'Đánh giá phản hồi chưa được ghi nhận, vui lòng thử lại'
+              : errorMessage.length
+                ? 'Nội dung sai định dạng'
+                : 'Đổi tên thất bại'
+          }
           handleClose={() => {
             setToastInfo(false);
+            setErrorMessage('');
           }}
         />
       )}
