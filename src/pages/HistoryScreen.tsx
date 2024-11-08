@@ -73,7 +73,6 @@ function HistoryScreen() {
       }
     }
   }, [loading, lastMessageTimes.length]);
-  console.log('done', isDataReadyRef.current);
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -245,7 +244,7 @@ function HistoryScreen() {
                               value={titles.find((item2) => item2.id === item.id)?.text}
                               onChange={(e) => {
                                 if (e.target.value.length > MAX_CHAR_INPUT_LENGTH) {
-                                  e.target.value = e.target.value.slice(0, 200);
+                                  e.target.value = e.target.value.slice(0, MAX_CHAR_INPUT_LENGTH);
                                 }
                                 setTitles((prev) => {
                                   if (prev.length > 0) {
