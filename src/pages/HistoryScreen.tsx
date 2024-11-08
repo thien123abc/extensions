@@ -14,11 +14,13 @@ import LoadingIcon from '../assets/icons/loading-icon.svg';
 import ToastNotification from '../components/ToastNotification';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 import { formattedTime } from '../utils/formatTime';
+import ErrorIcon from '../assets/icons/icon-close-red.svg';
+import { getMessagesApiAsync } from '../api/eventSource';
 
 type ActionState = { type: 'EDIT'; id: string; text: string } | { type: 'DELETE'; id: string; text: string } | null;
 
 export const MAX_CHAR_INPUT_LENGTH = 200;
-const MAX_CHAR_DISPLAY_LENGTH = 64;
+const MAX_CHAR_DISPLAY_LENGTH = 48;
 
 function HistoryScreen() {
   const history = useHistory();
@@ -44,6 +46,7 @@ function HistoryScreen() {
         const { id, text } = actionState;
         setTitles((prev) => [...prev.filter((item2) => item2.id !== id), { id, text }]);
         setActionState(null);
+        setIsInputFocused(false);
       }
     },
     'customSnackbar',
@@ -78,6 +81,10 @@ function HistoryScreen() {
     try {
       const data = await api.conversation.listAsync();
       if (data.result) {
+        data.result.forEach(async (conversation) => {
+          const a = (await getMessagesApiAsync({ conversation_id: conversation.id })).result;
+          console.log('=>', a);
+        });
         setConversations(data.result);
         setTitles(data.result.map((conversation) => ({ id: conversation.id, text: conversation.title })));
       }
@@ -253,10 +260,10 @@ function HistoryScreen() {
                             )}
                           </>
                         ) : (
-                          <p className="titles-item-his-view">
+                          <p className="titles-item-his-view" style={{ fontWeight: 'bold' }}>
                             {item.title.length <= MAX_CHAR_DISPLAY_LENGTH
                               ? item.title
-                              : item.title.slice(0, 64) + '...'}
+                              : item.title.slice(0, MAX_CHAR_DISPLAY_LENGTH) + '...'}
                           </p>
                         )}
                         <p>{conversationTimes.find((item2) => item2.id === item.id)?.realTime}</p>
@@ -356,6 +363,8 @@ function HistoryScreen() {
       </div>
       {toastInfo && (
         <ToastNotification
+          height={40}
+          width={288}
           open={toastInfo}
           message={
             actionState
@@ -366,6 +375,8 @@ function HistoryScreen() {
                   : ''
               : ''
           }
+          icon={ErrorIcon}
+          bg="#303036"
           handleClose={() => {
             setToastInfo(false);
             if (actionState) {
@@ -385,8 +396,8 @@ function HistoryScreen() {
           message="Bạn có chắc chắn muốn xoá hội thoại này?"
           onClose={() => setActionState(null)}
           onClick={handleClickDelete}
-          widthBox="400px"
-          heightBox="180px"
+          widthBox="352px"
+          heightBox="148px"
         />
       )}
     </div>
