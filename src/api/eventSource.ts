@@ -274,6 +274,7 @@ export const getMessagesApiAsync = async (
       conversation_id: conv.conversation_id,
       answer: conv.answer,
       feedback: conv.feedback,
+      created_at: conv.created_at,
     } as IVsocGetMessageApiArgs;
   });
   console.log('ok', result);
