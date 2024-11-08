@@ -82,7 +82,7 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
         <Box
           sx={{
             width: '100%',
-            height: isEditingTitle ? '24px' : '56px',
+            height: isEditingTitle ? '24px' : '42px',
             marginBottom: isEditingTitle ? '8px' : 0,
             display: 'flex',
             justifyContent: 'space-between',
@@ -90,7 +90,7 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
             flexShrink: 0,
           }}
         >
-          <Typography variant="body1" sx={{ color: 'white' }}>
+          <Typography variant="body1" sx={{ color: '#f2f2f3', fontSize: '20px' }}>
             {title}
           </Typography>
           <img
@@ -138,7 +138,9 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
                 <Input
                   value={inputValue}
                   onChange={(e) => {
-                    if (e.target.value.length > MAX_CHAR_INPUT_LENGTH) return;
+                    if (e.target.value.length > MAX_CHAR_INPUT_LENGTH) {
+                      e.target.value = e.target.value.slice(0, MAX_CHAR_INPUT_LENGTH);
+                    }
                     setInputValue(e.target.value);
                   }}
                   autoFocus
@@ -181,7 +183,10 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
               </Typography>
             </Box>
           ) : (
-            <Typography variant="body2" sx={{ color: 'white', marginBottom: '16px', marginTop: '8px' }}>
+            <Typography
+              variant="body2"
+              sx={{ color: '#f2f2f3', marginTop: '8px', marginBottom: '12px', fontWeight: 300, fontSize: '14px' }}
+            >
               {message}
             </Typography>
           )}
@@ -195,6 +200,7 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
                 height: '40px',
                 padding: '10px 28px',
                 textTransform: 'none',
+                color: '#e5e5e7',
                 '&:hover': {
                   backgroundColor: '#494950',
                   opacity: 0.8,
