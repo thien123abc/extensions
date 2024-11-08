@@ -1,9 +1,16 @@
 import Snackbar from '@mui/material/Snackbar';
 import { Box, IconButton } from '@mui/material';
 import CloseIcon from '../assets/icons/icon-close.svg'; // Nút đóng
-import ErrorIcon from '../assets/icons/icon-close-red.svg'; // Icon lỗi
 
-const ToastNotification = ({ open = true, handleClose = () => {}, message = '' }) => {
+const ToastNotification = ({
+  open = true,
+  handleClose = () => {},
+  message = '',
+  width = 0,
+  height = 0,
+  bg = '',
+  icon = '',
+}) => {
   return (
     <Snackbar
       open={open}
@@ -14,9 +21,9 @@ const ToastNotification = ({ open = true, handleClose = () => {}, message = '' }
     >
       <Box
         sx={{
-          width: 288,
-          height: 40,
-          backgroundColor: '#303036',
+          width,
+          height,
+          backgroundColor: bg,
           display: 'flex',
           alignItems: 'center',
           padding: '8px 16px',
@@ -26,11 +33,11 @@ const ToastNotification = ({ open = true, handleClose = () => {}, message = '' }
         }}
       >
         <IconButton size="small" onClick={handleClose} sx={{ color: 'white' }}>
-          <img src={ErrorIcon} alt="error-icon" style={{ width: 24, height: 24 }} />
+          <img src={icon} alt="error-icon" style={{ width: 24, height: 24 }} />
         </IconButton>
-        <span style={{ color: 'white', flexGrow: 1, marginLeft: '8px' }}>{message}</span>
+        <span style={{ color: 'white', flexGrow: 1, marginLeft: '8px', fontSize: '14px' }}>{message}</span>
         <IconButton size="small" onClick={handleClose} sx={{ color: 'white' }}>
-          <img src={CloseIcon} alt="close-icon" style={{ width: 20, height: 20 }} />
+          <img src={CloseIcon} alt="close-icon" style={{ width: 16, height: 16 }} />
         </IconButton>
       </Box>
     </Snackbar>
