@@ -110,7 +110,12 @@ const parseDifyMesssage = (line: string): IDifyMessage | undefined => {
 
 type ResolveFunction = (reason?: any) => void;
 
-const markDifyResponseEnd = (conversationId: string, lastRoleInMessage: string, reject?: ResolveFunction) => {
+const markDifyResponseEnd = (
+  conversationId: string,
+  lastRoleInMessage: string,
+  msg_id: string,
+  reject?: ResolveFunction,
+) => {
   if (reject) return;
   const msg: IMessageQueue = {
     action: 'DONE',
@@ -119,6 +124,7 @@ const markDifyResponseEnd = (conversationId: string, lastRoleInMessage: string, 
     time: new Date().getTime(),
     role: lastRoleInMessage,
     message: '',
+    message_id: msg_id,
   };
   conversationHub[conversationId].push(msg);
   console.log('finnal: ', conversationHub[conversationId][0]);
@@ -147,6 +153,7 @@ const extractRole = (evt: IDifyMessage, roleInfo: RoleInfo) => {
 const connectToBotAsync = (arg: IVsocCreateConversationArgs | IVsocSendMessageArgs) => {
   return new Promise<IVsocApiResult<IVsocCreateConversationResult>>(async (resolve, reject) => {
     let conversationId = '';
+    let msgId = '';
     const roleInfo: RoleInfo = {
       currentRole: '',
       lastRoleInMessage: '',
@@ -203,7 +210,9 @@ const connectToBotAsync = (arg: IVsocCreateConversationArgs | IVsocSendMessageAr
           message: evt.answer as string,
           message_id: evt.message_id,
         };
+        msgId = evt.message_id;
         console.log('hiện tại=> ', msg);
+        console.log('msgId ', msgId);
         conversationHub[conversationId].push(msg);
         roleInfo.lastRoleInMessage = roleInfo.currentRole;
       }
@@ -211,7 +220,7 @@ const connectToBotAsync = (arg: IVsocCreateConversationArgs | IVsocSendMessageAr
       console.error(ex);
       fnReject?.(ex);
     } finally {
-      markDifyResponseEnd(conversationId, roleInfo.lastRoleInMessage, fnReject);
+      markDifyResponseEnd(conversationId, roleInfo.lastRoleInMessage, msgId, fnReject);
     }
   });
 };
