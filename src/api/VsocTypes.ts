@@ -32,6 +32,7 @@ export interface IVsocGetMessageApiArgs {
   message_id: string;
   answer: string;
   feedback: { rating: 'like' | 'dislike' } | null;
+  created_at: number;
 }
 
 export interface IVsocGetNextMessageResult extends IVsocStoredMessage {
