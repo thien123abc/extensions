@@ -52,6 +52,7 @@ export interface IVsocStoredMessage {
   time: number;
   message_id?: string;
   feedback?: { rating: 'like' | 'dislike' } | null;
+  task_id?: string;
 }
 
 export interface IVsocStoreConversationArgs {
