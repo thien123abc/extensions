@@ -1,5 +1,6 @@
+/* eslint-disable no-useless-escape */
 import { useHistory, useLocation } from 'react-router-dom';
-import { useEffect, useRef, useState } from 'react';
+import { LegacyRef, useEffect, useRef, useState } from 'react';
 import { marked } from 'marked';
 import api from '../api/VsocApi';
 import {
@@ -18,7 +19,7 @@ import { Box, IconButton } from '@mui/material';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 import IconPlus from '../assets/icons/icon-plus.svg';
 import ToastNotification from '../components/ToastNotification';
-import { saveConversationAsync } from '../api/conversation';
+import { saveConversationAsync, stopGenarateAsync } from '../api/conversation';
 import DOMPurify from 'dompurify';
 import IconCopy from '../assets/icons/icon-copy.svg';
 import IconPressed from '../assets/icons/icon-pressed.svg';
@@ -30,8 +31,10 @@ import { feedbackMessageAsync, getMessagesApiAsync } from '../api/eventSource';
 import IcondSendActive from '../assets/icons/icon-send-active.svg';
 import ErrorIcon from '../assets/icons/icon-close-red.svg';
 import AlertIcon from '../assets/icons/icon-alert.svg';
-import PeopleIcon from '../assets/icons/icon-people.svg';
-import PauseIcon from '@mui/icons-material/Pause';
+import PauseIcon from '../assets/icons/icon-pause.svg';
+import IconSendBlur from '../assets/icons/icon-send-blur.svg';
+import Prism from 'prismjs';
+import katex from 'katex';
 
 const MAX_CHAR_DISPLAY_LENGTH = 34;
 
@@ -60,9 +63,12 @@ function MainScreen() {
   const [copiedMessage, setCopiedMessage] = useState<{ [key: string]: boolean }>({});
   const [timeoutIds, setTimeoutIds] = useState<{ [key: string]: NodeJS.Timeout }>({});
   const [errorMessage, setErrorMessage] = useState('');
+  const [stopGenerate, setStopGenerate] = useState(false);
+  const [messageStatus, setMessageStatus] = useState<{ msg_id: string; msg_type: 'user' | 'bot'; task_id: string }>();
 
   const messageItemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const feedbackRef = useRef<HTMLDivElement | null>();
+  const msgRef = useRef<string>('');
 
   chrome?.runtime?.onMessage?.addListener((message: IChromeMessage) => {
     if (message && message.type === 'text_from_monitor') {
@@ -204,8 +210,6 @@ function MainScreen() {
 
   const getListData = async (id: string) => {
     try {
-      console.log('lô1');
-
       const data = await api.message.getNextAsync({
         conversation_id: id,
       });
@@ -243,13 +247,17 @@ function MainScreen() {
 
           messages.push(message);
         }
-
         setMessages([...messages]);
         setForceRenderValue((prev) => prev + 1);
+        setMessageStatus({
+          msg_id: data.result.message_id as string,
+          msg_type: 'bot',
+          task_id: data.result.task_id as string,
+        });
         scrollToBottom();
         setActionMess(data.result.action);
         if (data.result.action === 'WAIT') {
-          setTimeout(() => getListData(id), 500);
+          setTimeout(() => getListData(id), 30);
         }
       }
     } catch (error) {
@@ -293,6 +301,8 @@ function MainScreen() {
       }
       setTextValue('');
       setActionMess('WAIT');
+      setStopGenerate(false);
+      setMessageStatus({ msg_id: '', msg_type: 'user', task_id: '' });
       let conversation_id;
       let _textValue: string = '';
       const textMess = textValue.split('\n');
@@ -311,24 +321,31 @@ function MainScreen() {
       messages.push(msg);
       setForceRenderValue((prev) => prev + 1);
       scrollToBottom();
-      // if (messages.length <= 1) {
-      //   conversation_id = await createConversation(textValue, 'QA');
-      //   setCurrentConversationID(conversation_id);
-      //   msg.conversation_id = conversation_id;
-      //   await saveMessage(msg);
-      //   setForceRenderValue((prev) => prev + 1);
-      // } else {
-      //   conversation_id = currentConversationID;
-      //   await saveMessage(msg);
-      //   await api.message.sendAsync({
-      //     conversation_id: conversation_id,
-      //     text: textValue,
-      //   });
-      // }
-      // console.log('CONVERSATION ID: ', conversation_id);
-      await getListData('1');
+      if (messages.length <= 1) {
+        conversation_id = await createConversation(textValue, 'QA');
+        setCurrentConversationID(conversation_id);
+        msg.conversation_id = conversation_id;
+        await saveMessage(msg);
+        setForceRenderValue((prev) => prev + 1);
+      } else {
+        conversation_id = currentConversationID;
+        await saveMessage(msg);
+        await api.message.sendAsync({
+          conversation_id: conversation_id,
+          text: textValue,
+        });
+      }
+      console.log('CONVERSATION ID: ', conversation_id);
+      await getListData(conversation_id);
     } catch (error) {
       setActionMess('');
+    }
+  };
+
+  const handleStopGenarate = async () => {
+    if (messageStatus?.task_id) {
+      await stopGenarateAsync(messageStatus.task_id);
+      setStopGenerate(true);
     }
   };
 
@@ -415,27 +432,18 @@ function MainScreen() {
     setErrorMessage('');
     setToastInfo(false);
   };
-  // Regex chỉ cho phép nhập chữ, số và một số ký tự đặc biệt
-  const validCharRegex = /^[a-zA-Z0-9.,?!:;'"()&%-\s]*$/;
 
   // Chặn việc nhập các ký tự không phải là chữ cái và số
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Kiểm tra ký tự nhập vào có hợp lệ không
-    // if (!validCharRegex.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete') {
-    //   e.preventDefault(); // Nếu không hợp lệ, chặn lại
-    //   setErrorMessage('Chỉ được nhập chữ, ký tự và số.');
-    //   setToastInfo(true);
-    //   return;
-    // } else {
-    //   setToastInfo(false);
-    //   setErrorMessage(''); // Nếu hợp lệ, xóa lỗi
-    // }
-
     // Xử lý khi nhấn Enter
     if (e.key === 'Enter') {
       if (e.ctrlKey && textValue.trim()) {
+        console.log('xs');
+
         setTextValue(textValue + '\n'); // Ctrl+Enter xuống dòng
       } else {
+        // Chặn Enter khi không phải Ctrl+Enter
+        e.preventDefault();
         // Nếu actionMess là 'WAIT', không cho phép gửi tin nhắn
         if (actionMess === 'WAIT') {
           e.preventDefault();
@@ -450,6 +458,69 @@ function MainScreen() {
       }
     }
   };
+
+  useEffect(() => {
+    if (msgRef.current) {
+      Prism.highlightAll();
+    }
+  }, [msgRef.current, actionMess]);
+
+  const messageRef = useRef<HTMLParagraphElement>(null);
+
+  // useEffect(() => {
+  //   if (messageRef.current) {
+  //     // Tìm tất cả các công thức LaTeX trong tin nhắn
+  //     // Regex cải tiến để nhận diện tất cả các công thức toán học
+  //     const mathRegex = /(\$[^\$]*\$|\\\[[\s\S]*?\\\]|\([^\)]*\))/g;
+
+  //     const matches = msgRef.current.match(mathRegex);
+
+  //     if (matches) {
+  //       // Render công thức toán học cho từng công thức được tìm thấy
+  //       matches.forEach((match) => {
+  //         const latex = match.replace(/^\$|\$$|\(|\)$/g, ''); // Loại bỏ dấu $, (, )
+  //         console.log('latex', latex);
+  //         // Tạo một phần tử HTML để chứa nội dung công thức toán học
+  //         const code = document.createElement('code');
+  //         katex.render(latex, code, { throwOnError: false });
+  //         // Thay thế nội dung trong tin nhắn bằng phần tử đã render công thức
+  //         messageRef.current?.appendChild(code);
+  //       });
+  //     }
+  //   }
+  // }, [msgRef.current, actionMess]);
+
+  useEffect(() => {
+    if (messageRef.current) {
+      // Tách công thức toán học ra khỏi phần văn bản
+      const mathRegex = /(\$[^\$]*\$|\\\[[\s\S]*?\\\]|\([^\)]*\))/g;
+      const parts = msgRef.current.split(mathRegex); // Tách phần toán học ra khỏi văn bản
+
+      // Tạo một array để chứa các phần đã xử lý
+      const renderedContent = parts.map((part, index) => {
+        // Nếu phần này là công thức toán học, render nó bằng KaTeX
+        if (part.match(mathRegex)) {
+          const latex = part.replace(/^\$|\$$|\(|\)$/g, ''); // Loại bỏ dấu $ hoặc ()
+          const span = document.createElement('span');
+          katex.render(latex, span, { throwOnError: false });
+          return span; // Trả về phần tử đã render công thức toán học
+        }
+
+        // Nếu không phải công thức toán học, chỉ trả về văn bản thường
+        return part;
+      });
+
+      // Gắn các phần đã render vào DOM
+      messageRef.current.innerHTML = ''; // Reset nội dung cũ
+      renderedContent.forEach((part) => {
+        if (typeof part === 'string') {
+          messageRef.current?.appendChild(document.createTextNode(part)); // Thêm văn bản
+        } else {
+          messageRef.current?.appendChild(part); // Thêm công thức toán học đã render
+        }
+      });
+    }
+  }, [msgRef.current, actionMess]);
 
   return (
     <div id="main-screen" className="container">
@@ -547,7 +618,7 @@ function MainScreen() {
         {messages.length > 0 ? (
           <div ref={scrollRef} id="text-chat-panel" className="text-chat-panel">
             {messages.map((item: IVsocStoredMessageStore, index) => {
-              console.log('item', item);
+              console.log('item', item.message_html);
 
               const inputClass = item.role === 'User' ? 'user-item-chat' : 'item-chat';
               const builtinRoles: Record<string, IVsocRole> = config.builtin_roles;
@@ -572,6 +643,7 @@ function MainScreen() {
               // });
               // console.log('raw_html_table', raw_html_table);
               const sanitizedHtml = DOMPurify.sanitize(item.message_html);
+              msgRef.current = sanitizedHtml;
 
               return (
                 <div
@@ -599,12 +671,20 @@ function MainScreen() {
                       setHoverFeedback({ msg_id: item.message_id as string, display: 'flex' });
                     }}
                     onMouseLeave={() => {
-                      console.log('thoat msg');
                       setHoverFeedback({ msg_id: item.message_id as string, display: 'none' });
                     }}
                   >
-                    <p className="item-text-chat" dangerouslySetInnerHTML={{ __html: sanitizedHtml }}></p>
-                    {inputClass === 'item-chat' && actionMess === 'WAIT' ? <span className="cursor1"></span> : null}
+                    <p
+                      ref={messageRef}
+                      className="item-text-chat"
+                      dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+                    ></p>
+                    {/* <p ref={messageRef} className="item-text-chat"></p> */}
+                    {inputClass === 'item-chat' &&
+                    actionMess === 'WAIT' &&
+                    item.message_id === messageStatus?.msg_id ? (
+                      <span className="streaming"></span>
+                    ) : null}
                     {inputClass === 'item-chat' &&
                       hoverFeeback &&
                       hoverFeeback.msg_id === item.message_id &&
@@ -689,18 +769,18 @@ function MainScreen() {
           </div>
         ) : (
           <div id="default-text-chat" className="default-text-chat">
-            <img id="people-icon" src={PeopleIcon} alt="people-icon" />
+            <img id="people-icon" src={require('../assets/images/people-icon.png')} alt="people-icon" />
             <p className="default-title-no-data">Xin chào! Chúng tôi là vSOC</p>
             <p className="default-no-data">
               vSOC sẽ giải đáp cho bạn về an toàn thông tin và hỗ trợ tự động phân tích cảnh báo.
             </p>
           </div>
         )}
-        {/* {actionMess === 'WAIT' ? (
+        {actionMess === 'WAIT' && messageStatus?.msg_type === 'user' ? (
           <p className="typing-text">
             <span className="cursor"></span>
           </p>
-        ) : null} */}
+        ) : null}
         <div className="input-chat">
           <div className="view-chat">
             <textarea
@@ -716,8 +796,10 @@ function MainScreen() {
             />
 
             <Tippy content={actionMess === 'WAIT' ? 'Dừng' : 'Gửi'} interactive placement="top">
-              {actionMess === 'WAIT' ? (
-                <PauseIcon />
+              {actionMess === 'WAIT' && messageStatus?.task_id && !stopGenerate ? (
+                <button id="send-text" onClick={handleStopGenarate}>
+                  <img src={PauseIcon} alt="pause-icon" />
+                </button>
               ) : (
                 <button
                   className={actionMess === 'WAIT' || !textValue.trim() ? 'disable-button' : ''}
@@ -725,10 +807,10 @@ function MainScreen() {
                   id="send-text"
                   onClick={sendMessages}
                 >
-                  {actionMess !== 'WAIT' && textValue.trim() ? (
+                  {textValue.trim() && stopGenerate ? (
                     <img id="send-icon" src={IcondSendActive} alt="send-icon" />
                   ) : (
-                    <img id="send-icon" src={require('../assets/images/send-icon.png')} alt="send-icon" />
+                    <img id="send-icon" src={IconSendBlur} alt="send-icon" />
                   )}
                 </button>
               )}
