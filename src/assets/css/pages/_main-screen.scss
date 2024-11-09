@@ -233,10 +233,73 @@
             white-space: normal;
           }
 
-          p {
-            margin: 10px 0;
+          p,
+          h1,
+          h2,
+          h3,
+          h4,
+          h5,
+          h6,
+          div,
+          article,
+          section {
             display: inline;
           }
+          code {
+            display: block;
+            background-color: #3d3d43;
+            width: fit-content;
+          }
+          pre {
+            background-color: #3d3d43; /* Nền màu xám nhạt cho code block */
+            padding: 20px;
+            border-radius: 8px; /* Bo góc nhẹ */
+            overflow-x: auto; /* Thêm thanh cuộn ngang nếu code quá dài */
+            white-space: pre-wrap; /* Ngắt dòng tự động */
+            word-wrap: break-word; /* Ngắt từ nếu cần */
+            font-family: monospace;
+            font-size: 14px; /* Kích thước chữ */
+            max-width: 100%; /* Đảm bảo chiếm hết chiều rộng khung chat */
+
+            & > code {
+              color: #f5f5f5; /* Màu chữ sáng (trắng) */
+            }
+
+            .keyword {
+              color: #a626a4;
+            }
+            .operator {
+              color: #999;
+              background: #3d3d43;
+            }
+
+            .string {
+              color: #50a14f;
+            }
+            .attr {
+              color: #986801;
+            }
+
+            .comment {
+              color: #a0a1a7;
+              font-style: italic;
+            }
+
+            .function {
+              color: #4078f2;
+            }
+            .params {
+              color: #ececec;
+            }
+            .name {
+              color: #e45649;
+            }
+            .hljs-title {
+              color: #4078f2;
+            }
+          }
+
+          /* Dành riêng cho syntax highlighting */
 
           a {
             color: $primary-color;
@@ -282,18 +345,13 @@
             }
           }
         }
-
-        .cursor1 {
+        .streaming {
           background-color: #89a357;
           box-shadow: 0px 0px 4px 0px #5fff51;
           animation: blink 0.5s infinite;
           display: inline-block;
           width: 11px;
           height: 3px;
-          // position: absolute;
-          // top: 50%;
-          // left: 50%;
-          // transform: translate(-50%, -50%);
         }
 
         .item-chat {
@@ -304,6 +362,7 @@
           max-width: 90%;
           line-height: 24px;
           position: relative;
+          padding: 10px 12px 14px 12px;
 
           .custom-tippy-liked {
             width: 95px;
@@ -321,6 +380,7 @@
           background-color: $my-bg-input-color;
           max-width: 90%;
           line-height: 24px;
+          padding: 10px 12px 14px 12px;
 
           ol {
             padding-left: 16px;
