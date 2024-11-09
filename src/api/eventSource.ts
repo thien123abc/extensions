@@ -228,12 +228,209 @@ const connectToBotAsync = (arg: IVsocCreateConversationArgs | IVsocSendMessageAr
 export const createConversationAsync = (arg: IVsocCreateConversationArgs) => connectToBotAsync(arg);
 
 export const sendMessageAsync = (arg: IVsocSendMessageArgs) => connectToBotAsync(arg);
-
+const arr: IMessageQueue[] = [
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: 'xin',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: 'chào',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: 'tôi',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: 'là',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: 'bot',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: 'hôm',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message:
+      'nay<h1>Chào bạn, dưới đây là kết quả khảo sát về sự hài lòng của khách hàng đối với các dịch vụ mà chúng tôi cung cấp:</h1>',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message:
+      '<p>Chúng tôi rất biết ơn sự đóng góp ý kiến của bạn và luôn nỗ lực cải thiện chất lượng dịch vụ. Dưới đây là bảng thống kê mức độ hài lòng của khách hàng với các dịch vụ:<p>',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: '<table border="1" style="width:100%; margin-top: 10px;">',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: '<thead><tr><th>Dịch vụ</th><th>Hài lòng</th>',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: '<th>Không hài lòng</th></tr>',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: '</thead><tbody><tr><td>Chăm sóc khách hàng',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: '</td><td>92%</td><td>8%</td>',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: '</tr><tr><td>Giao hàng đúng hẹn</td><td>85%</td>',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: '<td>15%</td></tr><tr><td>Hỗ trợ kỹ thuật</td>',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: '<td>88%</td><td>12%</td></tr><tr>',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: '<td>Giá cả hợp lý</td><td>90%</td>',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: '<td>10%</td></tr></tbody>',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: '</table><p>Chúng tôi rất trân trọng sự hợp tác của bạn ',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: 'và hy vọng sẽ tiếp tục nhận được sự ủng hộ ',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: 'trong tương lai!</p>',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+  {
+    conversation_id: '1',
+    action: 'WAIT',
+    message: 'xin',
+    time: new Date().getTime(),
+    type: 'text',
+    role: 'Customer Support',
+  },
+];
+conversationHub['1'] = [];
+[
+  ...arr,
+  ...arr,
+  ...arr,
+  {
+    action: 'DONE',
+    type: 'break_paragraph',
+    conversation_id: '1',
+    time: new Date().getTime(),
+    role: 'Customer Support',
+    message: '',
+  } as IMessageQueue,
+].forEach((item) => {
+  conversationHub[item.conversation_id].push(item);
+});
 export const getNextMessageAsync = (arg: IVsocGetNextMessageArgs) => {
   return new Promise<IVsocApiResult<IVsocGetNextMessageResult>>((resolve) => {
-    if (!arg.conversation_id || !(arg.conversation_id in conversationHub)) {
-      throw new Error(`conversation_id ${arg.conversation_id} is not found`);
-    }
+    // if (!arg.conversation_id || !(arg.conversation_id in conversationHub)) {
+    //   throw new Error(`conversation_id ${arg.conversation_id} is not found`);
+    // }
+    console.log('hub', conversationHub);
+
     const queue = conversationHub[arg.conversation_id];
     let message = queue.shift();
     if (!message)

@@ -30,6 +30,8 @@ import { feedbackMessageAsync, getMessagesApiAsync } from '../api/eventSource';
 import IcondSendActive from '../assets/icons/icon-send-active.svg';
 import ErrorIcon from '../assets/icons/icon-close-red.svg';
 import AlertIcon from '../assets/icons/icon-alert.svg';
+import PeopleIcon from '../assets/icons/icon-people.svg';
+import PauseIcon from '@mui/icons-material/Pause';
 
 const MAX_CHAR_DISPLAY_LENGTH = 34;
 
@@ -202,6 +204,8 @@ function MainScreen() {
 
   const getListData = async (id: string) => {
     try {
+      console.log('lô1');
+
       const data = await api.message.getNextAsync({
         conversation_id: id,
       });
@@ -240,21 +244,12 @@ function MainScreen() {
           messages.push(message);
         }
 
-        const arr: any = [];
-        for (let i = 0; i < messages.length; i++) {
-          arr.push(messages[i]);
-          if (arr.length > 1) {
-            arr[arr.length - 2] = arr[arr.length - 2].replace('!', '');
-          }
-          arr[arr.length - 1] += '!';
-        }
-
-        setMessages([...arr]);
+        setMessages([...messages]);
         setForceRenderValue((prev) => prev + 1);
         scrollToBottom();
         setActionMess(data.result.action);
         if (data.result.action === 'WAIT') {
-          setTimeout(() => getListData(id), 1);
+          setTimeout(() => getListData(id), 500);
         }
       }
     } catch (error) {
@@ -316,22 +311,22 @@ function MainScreen() {
       messages.push(msg);
       setForceRenderValue((prev) => prev + 1);
       scrollToBottom();
-      if (messages.length <= 1) {
-        conversation_id = await createConversation(textValue, 'QA');
-        setCurrentConversationID(conversation_id);
-        msg.conversation_id = conversation_id;
-        await saveMessage(msg);
-        setForceRenderValue((prev) => prev + 1);
-      } else {
-        conversation_id = currentConversationID;
-        await saveMessage(msg);
-        await api.message.sendAsync({
-          conversation_id: conversation_id,
-          text: textValue,
-        });
-      }
-      console.log('CONVERSATION ID: ', conversation_id);
-      await getListData(conversation_id);
+      // if (messages.length <= 1) {
+      //   conversation_id = await createConversation(textValue, 'QA');
+      //   setCurrentConversationID(conversation_id);
+      //   msg.conversation_id = conversation_id;
+      //   await saveMessage(msg);
+      //   setForceRenderValue((prev) => prev + 1);
+      // } else {
+      //   conversation_id = currentConversationID;
+      //   await saveMessage(msg);
+      //   await api.message.sendAsync({
+      //     conversation_id: conversation_id,
+      //     text: textValue,
+      //   });
+      // }
+      // console.log('CONVERSATION ID: ', conversation_id);
+      await getListData('1');
     } catch (error) {
       setActionMess('');
     }
@@ -561,22 +556,22 @@ function MainScreen() {
               const bgRole =
                 item.role in builtinRoles ? builtinRoles[item.role].background_color : defaultRole.background_color;
               const imgRole = item.role in builtinRoles ? builtinRoles[item.role].avatar : defaultRole.avatar;
-              let raw_html = '';
-              let raw_html_table = '';
-              const raw_html_list = item.message_html.split('<table>');
-              console.log('raw_html_list', raw_html_list);
-              raw_html_list.forEach((itemText) => {
-                raw_html += itemText + '<div id="scroll-view-table"><table>';
-              });
-              console.log('raw_html', raw_html);
+              // let raw_html = '';
+              // let raw_html_table = '';
+              // const raw_html_list = item.message_html.split('<table>');
+              // console.log('raw_html_list', raw_html_list);
+              // raw_html_list.forEach((itemText) => {
+              //   raw_html += itemText + '<div id="scroll-view-table"><table>';
+              // });
+              // console.log('raw_html', raw_html);
 
-              const raw_html_list_tail = raw_html.split('</table>');
-              console.log('raw_html_list_tail', raw_html_list_tail);
-              raw_html_list_tail.forEach((itemText) => {
-                raw_html_table += itemText + '</table></div>';
-              });
-              console.log('raw_html_table', raw_html_table);
-              const sanitizedHtml = DOMPurify.sanitize(raw_html_table);
+              // const raw_html_list_tail = raw_html.split('</table>');
+              // console.log('raw_html_list_tail', raw_html_list_tail);
+              // raw_html_list_tail.forEach((itemText) => {
+              //   raw_html_table += itemText + '</table></div>';
+              // });
+              // console.log('raw_html_table', raw_html_table);
+              const sanitizedHtml = DOMPurify.sanitize(item.message_html);
 
               return (
                 <div
@@ -608,7 +603,8 @@ function MainScreen() {
                       setHoverFeedback({ msg_id: item.message_id as string, display: 'none' });
                     }}
                   >
-                    <p className="item-text-chat" dangerouslySetInnerHTML={{ __html: sanitizedHtml + '=>' }}></p>
+                    <p className="item-text-chat" dangerouslySetInnerHTML={{ __html: sanitizedHtml }}></p>
+                    {inputClass === 'item-chat' && actionMess === 'WAIT' ? <span className="cursor1"></span> : null}
                     {inputClass === 'item-chat' &&
                       hoverFeeback &&
                       hoverFeeback.msg_id === item.message_id &&
@@ -693,18 +689,18 @@ function MainScreen() {
           </div>
         ) : (
           <div id="default-text-chat" className="default-text-chat">
-            <img id="people-icon" src={require('../assets/images/people-icon.png')} alt="people-icon" />
+            <img id="people-icon" src={PeopleIcon} alt="people-icon" />
             <p className="default-title-no-data">Xin chào! Chúng tôi là vSOC</p>
             <p className="default-no-data">
               vSOC sẽ giải đáp cho bạn về an toàn thông tin và hỗ trợ tự động phân tích cảnh báo.
             </p>
           </div>
         )}
-        {/* {actionMess === 'WAIT' ? ( */}
-        <p className="typing-text">
-          <span className="cursor"></span>
-        </p>
-        {/* ) : null} */}
+        {/* {actionMess === 'WAIT' ? (
+          <p className="typing-text">
+            <span className="cursor"></span>
+          </p>
+        ) : null} */}
         <div className="input-chat">
           <div className="view-chat">
             <textarea
@@ -719,19 +715,23 @@ function MainScreen() {
               onKeyDown={handleKeyDown}
             />
 
-            <Tippy content="Gửi" interactive placement="top">
-              <button
-                className={actionMess === 'WAIT' || !textValue.trim() ? 'disable-button' : ''}
-                disabled={actionMess === 'WAIT' || !textValue.trim()}
-                id="send-text"
-                onClick={sendMessages}
-              >
-                {actionMess !== 'WAIT' && textValue.trim() ? (
-                  <img id="send-icon" src={IcondSendActive} alt="send-icon" />
-                ) : (
-                  <img id="send-icon" src={require('../assets/images/send-icon.png')} alt="send-icon" />
-                )}
-              </button>
+            <Tippy content={actionMess === 'WAIT' ? 'Dừng' : 'Gửi'} interactive placement="top">
+              {actionMess === 'WAIT' ? (
+                <PauseIcon />
+              ) : (
+                <button
+                  className={actionMess === 'WAIT' || !textValue.trim() ? 'disable-button' : ''}
+                  disabled={actionMess === 'WAIT' || !textValue.trim()}
+                  id="send-text"
+                  onClick={sendMessages}
+                >
+                  {actionMess !== 'WAIT' && textValue.trim() ? (
+                    <img id="send-icon" src={IcondSendActive} alt="send-icon" />
+                  ) : (
+                    <img id="send-icon" src={require('../assets/images/send-icon.png')} alt="send-icon" />
+                  )}
+                </button>
+              )}
             </Tippy>
           </div>
         </div>
