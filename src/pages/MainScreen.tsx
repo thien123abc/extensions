@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable no-useless-escape */
 import { useHistory, useLocation } from 'react-router-dom';
-import { LegacyRef, useEffect, useRef, useState } from 'react';
+import { ImgHTMLAttributes, useEffect, useRef, useState } from 'react';
 import { marked } from 'marked';
 import api from '../api/VsocApi';
 import {
@@ -15,7 +16,7 @@ import '../assets/css/index.scss';
 import config from '../env.json';
 import Tippy from '@tippyjs/react';
 import IconEditDetail from '../assets/icons/icon-edit-detail.svg';
-import { Box, IconButton } from '@mui/material';
+import { Box, IconButton, Modal, Tooltip } from '@mui/material';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 import IconPlus from '../assets/icons/icon-plus.svg';
 import ToastNotification from '../components/ToastNotification';
@@ -34,7 +35,12 @@ import AlertIcon from '../assets/icons/icon-alert.svg';
 import PauseIcon from '../assets/icons/icon-pause.svg';
 import IconSendBlur from '../assets/icons/icon-send-blur.svg';
 import Prism from 'prismjs';
-import katex from 'katex';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import logoImage from '../assets/images/vSOC-logo.png';
+import childImage from '../assets/images/child.png';
+import IconClose from '../assets/icons/icon-close.svg';
+import IconDownload from '../assets/icons/icon-download.svg';
 
 const MAX_CHAR_DISPLAY_LENGTH = 34;
 
@@ -69,6 +75,7 @@ function MainScreen() {
   const messageItemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const feedbackRef = useRef<HTMLDivElement | null>();
   const msgRef = useRef<string>('');
+  const imgRef = useRef<HTMLImageElement | null>(null);
 
   chrome?.runtime?.onMessage?.addListener((message: IChromeMessage) => {
     if (message && message.type === 'text_from_monitor') {
@@ -159,7 +166,6 @@ function MainScreen() {
       conversation_id: id,
       limit: 30,
     });
-    console.log('listMessages', listMessages);
 
     const dataMessagesApi = (await getMessagesApiAsync({ conversation_id: id, limit: 30 }))
       .result as IVsocGetMessageApiArgs[];
@@ -183,7 +189,6 @@ function MainScreen() {
           };
         return item;
       });
-      console.log('feed', transformedMessages);
 
       transformedMessages.reverse();
       setMessages(transformedMessages);
@@ -223,7 +228,7 @@ function MainScreen() {
         if (data.result.action == 'DONE') {
           // xử lý khi bot trả lời xong
           // ...
-          console.log('DONE');
+          // console.log('DONE');
         }
 
         await saveMessage(data.result);
@@ -238,7 +243,6 @@ function MainScreen() {
             message: raw,
             message_html: await markdownToHtml(raw),
           };
-          console.log('rawmd=>', raw);
         } else {
           const message: IVsocStoredMessageStore = {
             ...data.result,
@@ -265,15 +269,13 @@ function MainScreen() {
     }
   };
 
-  console.log('mess=>', messages);
+  // console.log('mess=>', messages);
 
   const createConversation = async (msg: string, type: VsocConversationType) => {
-    console.log('Start Create Conversation with text', msg, ' and type', type);
     const dataCreate = await api.conversation.createAsync({
       text: msg,
       type: type,
     });
-    console.log('dataCreate.result', dataCreate.result);
     if (dataCreate.result?.conversation_id) {
       await saveConversation(msg, dataCreate.result.conversation_id);
     }
@@ -285,7 +287,6 @@ function MainScreen() {
       conversation_id: conversation_id,
       title: msg,
     });
-    console.log('save data conversation ', data);
   };
 
   const saveMessage = async (msg: IVsocStoredMessage) => {
@@ -335,7 +336,6 @@ function MainScreen() {
           text: textValue,
         });
       }
-      console.log('CONVERSATION ID: ', conversation_id);
       await getListData(conversation_id);
     } catch (error) {
       setActionMess('');
@@ -438,8 +438,6 @@ function MainScreen() {
     // Xử lý khi nhấn Enter
     if (e.key === 'Enter') {
       if (e.ctrlKey && textValue.trim()) {
-        console.log('xs');
-
         setTextValue(textValue + '\n'); // Ctrl+Enter xuống dòng
       } else {
         // Chặn Enter khi không phải Ctrl+Enter
@@ -465,69 +463,64 @@ function MainScreen() {
     }
   }, [msgRef.current, actionMess]);
 
-  const messageRef = useRef<HTMLParagraphElement>(null);
+  // const render = {
+  //   img: ({ src, alt }: { src: string; alt: string }) => <img src={src} alt={alt} />,
+  // };
+  const a = `markdown
+![CRON-TRAP](https://datasec.viettelcybersecurity.com/s/6DV5vwBltw1oESG/tesst-png)
+`;
 
-  // useEffect(() => {
-  //   if (messageRef.current) {
-  //     // Tìm tất cả các công thức LaTeX trong tin nhắn
-  //     // Regex cải tiến để nhận diện tất cả các công thức toán học
-  //     const mathRegex = /(\$[^\$]*\$|\\\[[\s\S]*?\\\]|\([^\)]*\))/g;
+  const [openImageModal, setOpenImageModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState('');
+  const [isLoadedImgError, setIsLoadedImgError] = useState(false);
 
-  //     const matches = msgRef.current.match(mathRegex);
-
-  //     if (matches) {
-  //       // Render công thức toán học cho từng công thức được tìm thấy
-  //       matches.forEach((match) => {
-  //         const latex = match.replace(/^\$|\$$|\(|\)$/g, ''); // Loại bỏ dấu $, (, )
-  //         console.log('latex', latex);
-  //         // Tạo một phần tử HTML để chứa nội dung công thức toán học
-  //         const code = document.createElement('code');
-  //         katex.render(latex, code, { throwOnError: false });
-  //         // Thay thế nội dung trong tin nhắn bằng phần tử đã render công thức
-  //         messageRef.current?.appendChild(code);
-  //       });
-  //     }
-  //   }
-  // }, [msgRef.current, actionMess]);
-
-  useEffect(() => {
-    if (messageRef.current) {
-      // Tách công thức toán học ra khỏi phần văn bản
-      const mathRegex = /(\$[^\$]*\$|\\\[[\s\S]*?\\\]|\([^\)]*\))/g;
-      const parts = msgRef.current.split(mathRegex); // Tách phần toán học ra khỏi văn bản
-
-      // Tạo một array để chứa các phần đã xử lý
-      const renderedContent = parts.map((part, index) => {
-        // Nếu phần này là công thức toán học, render nó bằng KaTeX
-        if (part.match(mathRegex)) {
-          const latex = part.replace(/^\$|\$$|\(|\)$/g, ''); // Loại bỏ dấu $ hoặc ()
-          const span = document.createElement('span');
-          katex.render(latex, span, { throwOnError: false });
-          return span; // Trả về phần tử đã render công thức toán học
-        }
-
-        // Nếu không phải công thức toán học, chỉ trả về văn bản thường
-        return part;
-      });
-
-      // Gắn các phần đã render vào DOM
-      messageRef.current.innerHTML = ''; // Reset nội dung cũ
-      renderedContent.forEach((part) => {
-        if (typeof part === 'string') {
-          messageRef.current?.appendChild(document.createTextNode(part)); // Thêm văn bản
-        } else {
-          messageRef.current?.appendChild(part); // Thêm công thức toán học đã render
-        }
-      });
+  const handleImageClick = (imageUrl: string) => {
+    setOpenImageModal(true);
+    if (!isLoadedImgError) {
+      setSelectedImage(imageUrl);
     }
-  }, [msgRef.current, actionMess]);
+  };
+
+  const handleCloseModal = () => {
+    setOpenImageModal(false);
+    setSelectedImage('');
+  };
+
+  const handleDownloadImage = () => {
+    fetch(selectedImage, { method: 'GET', headers: {} })
+      .then((response) => {
+        response.arrayBuffer().then(function (buffer) {
+          const url = window.URL.createObjectURL(new Blob([buffer]));
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', 'image.jpg');
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        });
+      })
+      .catch((err) => {
+        console.log('err', err);
+      });
+  };
+
+  // Hàm xử lý khi ảnh lỗi
+  const handleImageError = (e: any) => {
+    e.target.src = logoImage;
+    // e.target.src = childImage;
+    setIsLoadedImgError(true);
+    setSelectedImage(e.target.src);
+  };
+
+  console.log('kcách', imgRef?.current?.getBoundingClientRect()?.left);
 
   return (
     <div id="main-screen" className="container">
       {!detailHis?.id ? (
         <div id="head-panel" className="head-panel">
           <p className="title-sidepanel">Chat</p>
-          <img id="logoIcon" src={require('../assets/images/vSOC-logo.png')} alt="vSOC-logo" />
+          {/* <img id="logoIcon" src={require('../assets/images/vSOC-logo.png')} alt="vSOC-logo" /> */}
+          <img id="logoIcon" src={logoImage} alt="vSOC-logo" />
           <div className="right-btn-row">
             <div className="custom-tooltip" style={{ display: showTooltip ? 'flex' : 'none' }}>
               <div className="content-tooltip">
@@ -619,6 +612,8 @@ function MainScreen() {
           <div ref={scrollRef} id="text-chat-panel" className="text-chat-panel">
             {messages.map((item: IVsocStoredMessageStore, index) => {
               console.log('item', item.message_html);
+              console.log('mark', item.message);
+              const hasImage = /!\[.*\]\(.*\)/.test(item.message);
 
               const inputClass = item.role === 'User' ? 'user-item-chat' : 'item-chat';
               const builtinRoles: Record<string, IVsocRole> = config.builtin_roles;
@@ -674,12 +669,41 @@ function MainScreen() {
                       setHoverFeedback({ msg_id: item.message_id as string, display: 'none' });
                     }}
                   >
-                    <p
-                      ref={messageRef}
-                      className="item-text-chat"
-                      dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-                    ></p>
-                    {/* <p ref={messageRef} className="item-text-chat"></p> */}
+                    {hasImage ? (
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          img: ({ src, alt }) => (
+                            <Tippy content="Xem chi tiết" interactive placement="top">
+                              <img
+                                src={src}
+                                alt={alt}
+                                style={{
+                                  width: '160px',
+                                  height: '160px',
+                                  objectFit: 'cover',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                }}
+                                onClick={() => handleImageClick(src as string)}
+                                onError={handleImageError}
+                                ref={imgRef}
+                              />
+                            </Tippy>
+                          ),
+                        }}
+                      >
+                        {item.message}
+                      </ReactMarkdown>
+                    ) : (
+                      <p
+                        className="item-text-chat"
+                        dangerouslySetInnerHTML={{
+                          __html: sanitizedHtml,
+                        }}
+                      ></p>
+                    )}
+
                     {inputClass === 'item-chat' &&
                     actionMess === 'WAIT' &&
                     item.message_id === messageStatus?.msg_id ? (
@@ -852,6 +876,68 @@ function MainScreen() {
           }}
         />
       )}
+
+      {/* Image Modal */}
+      <Modal
+        open={openImageModal}
+        onClose={handleCloseModal}
+        aria-labelledby="modal-modal-title"
+        aria-describedby="modal-modal-description"
+      >
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(0, 0, 0, 0.88)',
+            // backgroundColor: 'white',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <Box
+            sx={{
+              position: 'relative',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              width: '100%',
+              height: '100%',
+            }}
+          >
+            <img
+              src={selectedImage}
+              alt="Full Size"
+              style={{
+                width: imgRef.current ? imgRef.current.naturalWidth : 0,
+                height: imgRef.current ? imgRef.current.naturalHeight : 0,
+                objectFit: 'contain',
+              }}
+            />
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '91px',
+                left: 0,
+                right: 0,
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '0 16px',
+              }}
+            >
+              <IconButton onClick={handleCloseModal}>
+                <img src={IconClose} alt="icon-close" />
+              </IconButton>
+              <IconButton onClick={handleDownloadImage}>
+                <img src={IconDownload} alt="icon-download" />
+              </IconButton>
+            </Box>
+          </Box>
+        </Box>
+      </Modal>
     </div>
   );
 }
