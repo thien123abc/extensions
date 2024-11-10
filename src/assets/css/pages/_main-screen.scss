@@ -222,6 +222,14 @@
             background-color: $bg-icon-staff;
           }
         }
+        .hljs {
+          color: #fff;
+          background-color: #242428;
+
+          .hljs-string {
+            color: #11bb4f;
+          }
+        }
 
         .item-text-chat {
           margin: 0px;
