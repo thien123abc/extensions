@@ -17,3 +17,31 @@ declare module 'katex' {
   export function renderToString(math: string, options?: any): string;
   export function version(): string;
 }
+
+// src/types/react-mathjax2.d.ts
+declare module 'react-mathjax2' {
+  const MathJax: any;
+  const MathJaxContext: any;
+  const MathJaxProvider: any;
+
+  export { MathJax, MathJaxContext, MathJaxProvider };
+}
+declare module '*.png' {
+  const value: string;
+  export default value;
+}
+
+declare module '*.jpg' {
+  const value: string;
+  export default value;
+}
+
+declare module '*.jpeg' {
+  const value: string;
+  export default value;
+}
+
+declare module '*.gif' {
+  const value: string;
+  export default value;
+}
