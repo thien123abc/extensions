@@ -32,8 +32,8 @@ import { feedbackMessageAsync, getMessagesApiAsync } from '../api/eventSource';
 import IcondSendActive from '../assets/icons/icon-send-active.svg';
 import ErrorIcon from '../assets/icons/icon-close-red.svg';
 import AlertIcon from '../assets/icons/icon-alert.svg';
-import PauseIcon from '../assets/icons/icon-pause.svg';
-import IconSendBlur from '../assets/icons/icon-send-blur.svg';
+import PauseIcon from '../assets/icons/icon-disliked.svg';
+import IconSendBlur from '../assets/icons/icon-dislike.svg';
 import Prism from 'prismjs';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -71,6 +71,7 @@ function MainScreen() {
   const [errorMessage, setErrorMessage] = useState('');
   const [stopGenerate, setStopGenerate] = useState(false);
   const [messageStatus, setMessageStatus] = useState<{ msg_id: string; msg_type: 'user' | 'bot'; task_id: string }>();
+  const [leftOffset, setLeftOffset] = useState({ range: 0, isBigger: false });
 
   const messageItemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const feedbackRef = useRef<HTMLDivElement | null>();
@@ -322,21 +323,21 @@ function MainScreen() {
       messages.push(msg);
       setForceRenderValue((prev) => prev + 1);
       scrollToBottom();
-      if (messages.length <= 1) {
-        conversation_id = await createConversation(textValue, 'QA');
-        setCurrentConversationID(conversation_id);
-        msg.conversation_id = conversation_id;
-        await saveMessage(msg);
-        setForceRenderValue((prev) => prev + 1);
-      } else {
-        conversation_id = currentConversationID;
-        await saveMessage(msg);
-        await api.message.sendAsync({
-          conversation_id: conversation_id,
-          text: textValue,
-        });
-      }
-      await getListData(conversation_id);
+      // if (messages.length <= 1) {
+      //   conversation_id = await createConversation(textValue, 'QA');
+      //   setCurrentConversationID(conversation_id);
+      //   msg.conversation_id = conversation_id;
+      //   await saveMessage(msg);
+      //   setForceRenderValue((prev) => prev + 1);
+      // } else {
+      //   conversation_id = currentConversationID;
+      //   await saveMessage(msg);
+      //   await api.message.sendAsync({
+      //     conversation_id: conversation_id,
+      //     text: textValue,
+      //   });
+      // }
+      await getListData('1');
     } catch (error) {
       setActionMess('');
     }
@@ -512,7 +513,29 @@ function MainScreen() {
     setSelectedImage(e.target.src);
   };
 
-  console.log('kcách', imgRef?.current?.getBoundingClientRect()?.left);
+  const calculateLeftOffset = () => {
+    if (imgRef.current) {
+      const imgWidth = imgRef.current.naturalWidth;
+      const viewportWidth = window.innerWidth;
+      const imgHeight = imgRef.current.naturalHeight;
+      const viewportHeight = window.innerHeight;
+      const offsetWidth = (viewportWidth - imgWidth) / 2;
+      const offsetHeight = (viewportHeight - imgHeight) / 2;
+      setLeftOffset({ range: Math.ceil(Math.abs(offsetWidth)), isBigger: offsetHeight >= 182 ? false : true });
+    }
+  };
+
+  useEffect(() => {
+    calculateLeftOffset();
+    // Thêm event listener khi thay đổi kích thước màn hình
+    window.addEventListener('resize', calculateLeftOffset);
+
+    // Dọn dẹp event listener khi component unmount
+    return () => {
+      window.removeEventListener('resize', calculateLeftOffset);
+    };
+  }, [selectedImage]);
+  console.log('natu', leftOffset);
 
   return (
     <div id="main-screen" className="container">
@@ -892,7 +915,6 @@ function MainScreen() {
             width: '100vw',
             height: '100vh',
             backgroundColor: 'rgba(0, 0, 0, 0.88)',
-            // backgroundColor: 'white',
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
@@ -912,17 +934,27 @@ function MainScreen() {
               src={selectedImage}
               alt="Full Size"
               style={{
-                width: imgRef.current ? imgRef.current.naturalWidth : 0,
-                height: imgRef.current ? imgRef.current.naturalHeight : 0,
-                objectFit: 'contain',
+                width: imgRef.current
+                  ? leftOffset.isBigger
+                    ? window.innerWidth - 100
+                    : imgRef.current.naturalWidth
+                  : 0,
+                height: imgRef.current
+                  ? leftOffset.isBigger
+                    ? window.innerHeight - 91
+                    : imgRef.current.naturalHeight
+                  : 0,
+                objectFit: 'cover',
+                position: 'absolute',
+                top: leftOffset.isBigger ? '132px' : 'auto',
               }}
             />
             <Box
               sx={{
                 position: 'absolute',
                 top: '91px',
-                left: 0,
-                right: 0,
+                left: leftOffset.isBigger ? 30 : leftOffset.range - 30,
+                right: leftOffset.isBigger ? 30 : leftOffset.range - 30,
                 display: 'flex',
                 justifyContent: 'space-between',
                 padding: '0 16px',
