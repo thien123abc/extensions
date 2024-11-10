@@ -699,7 +699,7 @@ function MainScreen() {
                           img: ({ src, alt }) => (
                             <Tippy content="Xem chi tiết" interactive placement="top">
                               <img
-                                src={src}
+                                src={!isLoadedImgError ? src : selectedImage}
                                 alt={alt}
                                 style={{
                                   width: '160px',
