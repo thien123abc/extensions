@@ -243,9 +243,18 @@ function HistoryScreen() {
                               autoFocus={actionState && actionState.id === item.id}
                               value={titles.find((item2) => item2.id === item.id)?.text}
                               onChange={(e) => {
-                                if (e.target.value.length > MAX_CHAR_INPUT_LENGTH) {
-                                  e.target.value = e.target.value.slice(0, MAX_CHAR_INPUT_LENGTH);
+                                let value = e.target.value;
+                                // Nếu người dùng nhập dấu cách ở đầu hoặc sau dấu cách liên tiếp, xóa nó
+                                if (value.startsWith(' ')) {
+                                  value = value.replace(/^\s+/, ''); // Loại bỏ dấu cách ở đầu chuỗi
                                 }
+                                if (value.trim() !== '' && /\s{2,}/.test(value)) {
+                                  value = value.replace(/\s+/g, ' '); // Thay thế mọi dấu cách liên tiếp thành 1 dấu cách duy nhất
+                                }
+                                if (value.length > MAX_CHAR_INPUT_LENGTH) {
+                                  value = value.slice(0, MAX_CHAR_INPUT_LENGTH);
+                                }
+                                e.target.value = value;
                                 setTitles((prev) => {
                                   if (prev.length > 0) {
                                     if (actionState && actionState.type === 'EDIT') {
