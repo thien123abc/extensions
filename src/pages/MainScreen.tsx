@@ -32,8 +32,8 @@ import { feedbackMessageAsync, getMessagesApiAsync } from '../api/eventSource';
 import IcondSendActive from '../assets/icons/icon-send-active.svg';
 import ErrorIcon from '../assets/icons/icon-close-red.svg';
 import AlertIcon from '../assets/icons/icon-alert.svg';
-import PauseIcon from '../assets/icons/icon-disliked.svg';
-import IconSendBlur from '../assets/icons/icon-dislike.svg';
+import PauseIcon from '../assets/icons/icon-pause.svg';
+import IconSendBlur from '../assets/icons/icon-send-blur.svg';
 import Prism from 'prismjs';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -230,6 +230,7 @@ function MainScreen() {
           // xử lý khi bot trả lời xong
           // ...
           // console.log('DONE');
+          setStopGenerate(true);
         }
 
         await saveMessage(data.result);
@@ -252,6 +253,7 @@ function MainScreen() {
 
           messages.push(message);
         }
+
         setMessages([...messages]);
         setForceRenderValue((prev) => prev + 1);
         setMessageStatus({
@@ -270,7 +272,7 @@ function MainScreen() {
     }
   };
 
-  // console.log('mess=>', messages);
+  console.log('mess=>', messages);
 
   const createConversation = async (msg: string, type: VsocConversationType) => {
     const dataCreate = await api.conversation.createAsync({
@@ -323,21 +325,21 @@ function MainScreen() {
       messages.push(msg);
       setForceRenderValue((prev) => prev + 1);
       scrollToBottom();
-      // if (messages.length <= 1) {
-      //   conversation_id = await createConversation(textValue, 'QA');
-      //   setCurrentConversationID(conversation_id);
-      //   msg.conversation_id = conversation_id;
-      //   await saveMessage(msg);
-      //   setForceRenderValue((prev) => prev + 1);
-      // } else {
-      //   conversation_id = currentConversationID;
-      //   await saveMessage(msg);
-      //   await api.message.sendAsync({
-      //     conversation_id: conversation_id,
-      //     text: textValue,
-      //   });
-      // }
-      await getListData('1');
+      if (messages.length <= 1) {
+        conversation_id = await createConversation(textValue, 'QA');
+        setCurrentConversationID(conversation_id);
+        msg.conversation_id = conversation_id;
+        await saveMessage(msg);
+        setForceRenderValue((prev) => prev + 1);
+      } else {
+        conversation_id = currentConversationID;
+        await saveMessage(msg);
+        await api.message.sendAsync({
+          conversation_id: conversation_id,
+          text: textValue,
+        });
+      }
+      await getListData(conversation_id);
     } catch (error) {
       setActionMess('');
     }
@@ -356,11 +358,11 @@ function MainScreen() {
 
       await saveConversationAsync({
         conversation_id,
-        title,
+        title: title.trim(),
       });
       setIsSaving(false);
       setToastInfo(false);
-      setDetailHis({ ...detailHis, title } as IVsocStoredConversation);
+      setDetailHis({ ...detailHis, title: title.trim() } as IVsocStoredConversation);
       setIsEditDetail(false);
     } catch (error) {
       setToastInfo(true);
@@ -464,13 +466,6 @@ function MainScreen() {
     }
   }, [msgRef.current, actionMess]);
 
-  // const render = {
-  //   img: ({ src, alt }: { src: string; alt: string }) => <img src={src} alt={alt} />,
-  // };
-  const a = `markdown
-![CRON-TRAP](https://datasec.viettelcybersecurity.com/s/6DV5vwBltw1oESG/tesst-png)
-`;
-
   const [openImageModal, setOpenImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState('');
   const [isLoadedImgError, setIsLoadedImgError] = useState(false);
@@ -507,8 +502,8 @@ function MainScreen() {
 
   // Hàm xử lý khi ảnh lỗi
   const handleImageError = (e: any) => {
-    e.target.src = logoImage;
-    // e.target.src = childImage;
+    // e.target.src = logoImage;
+    e.target.src = childImage;
     setIsLoadedImgError(true);
     setSelectedImage(e.target.src);
   };
@@ -524,18 +519,25 @@ function MainScreen() {
       setLeftOffset({ range: Math.ceil(Math.abs(offsetWidth)), isBigger: offsetHeight >= 182 ? false : true });
     }
   };
-
   useEffect(() => {
     calculateLeftOffset();
     // Thêm event listener khi thay đổi kích thước màn hình
     window.addEventListener('resize', calculateLeftOffset);
-
     // Dọn dẹp event listener khi component unmount
     return () => {
       window.removeEventListener('resize', calculateLeftOffset);
     };
   }, [selectedImage]);
-  console.log('natu', leftOffset);
+
+  useEffect(() => {
+    const streamingElements = document.querySelectorAll('.streaming');
+    if (streamingElements.length > 0 && actionMess !== 'WAIT') {
+      for (let i = 0; i < streamingElements.length; i++) {
+        const streamingElement = streamingElements[i] as HTMLElement;
+        streamingElement.style.display = 'none';
+      }
+    }
+  }, [msgRef.current, actionMess]);
 
   return (
     <div id="main-screen" className="container">
@@ -636,7 +638,25 @@ function MainScreen() {
             {messages.map((item: IVsocStoredMessageStore, index) => {
               console.log('item', item.message_html);
               console.log('mark', item.message);
-              const hasImage = /!\[.*\]\(.*\)/.test(item.message);
+              const hasImage = /^!\[([^\]]*)\]\((https?:\/\/[^\)]+)\)$/.test(item.message);
+              const hasLink = /\^[^\!]\[.*\]\(.*\)/.test(item.message);
+              const hasCode =
+                /<pre><code[^>]*>(?!.*!\[.*\]\(.*\))(?!.*\[[^\]]*\]\([^\)]+\))[\s\S]*?<\/code><\/pre>/.test(
+                  item.message_html,
+                );
+              console.log('hasLink', hasCode);
+
+              const renderer = new marked.Renderer();
+              if (hasLink) {
+                renderer.link = (href, title, text) => {
+                  return `<a href="${href}" target="_blank" rel="noreferrer" style="color:#7EBBFC;">${text}</a>`;
+                };
+              }
+              const sanitizedHtmlLink = marked(
+                item.message +
+                  '<span class="streaming" style="width: 11px; display: inline-block; height: 3px; background: #89a357;box-shadow: 0px 0px 4px 0px #5fff51;animation: blink 0.5s infinite;"></span>',
+                { renderer },
+              );
 
               const inputClass = item.role === 'User' ? 'user-item-chat' : 'item-chat';
               const builtinRoles: Record<string, IVsocRole> = config.builtin_roles;
@@ -660,7 +680,10 @@ function MainScreen() {
               //   raw_html_table += itemText + '</table></div>';
               // });
               // console.log('raw_html_table', raw_html_table);
-              const sanitizedHtml = DOMPurify.sanitize(item.message_html);
+              const sanitizedHtml =
+                DOMPurify.sanitize(item.message_html) +
+                '<span class="streaming" style="width: 11px; display: inline-block; height: 3px; background: #89a357;box-shadow: 0px 0px 4px 0px #5fff51;animation: blink 0.5s infinite;"></span>';
+              // sanitizedHtml += '<span className="streaming"></span>';
               msgRef.current = sanitizedHtml;
 
               return (
@@ -692,7 +715,7 @@ function MainScreen() {
                       setHoverFeedback({ msg_id: item.message_id as string, display: 'none' });
                     }}
                   >
-                    {hasImage ? (
+                    {hasImage && (
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
@@ -718,7 +741,16 @@ function MainScreen() {
                       >
                         {item.message}
                       </ReactMarkdown>
-                    ) : (
+                    )}
+                    {hasLink && (
+                      <p
+                        className="item-text-chat"
+                        dangerouslySetInnerHTML={{
+                          __html: sanitizedHtmlLink as any,
+                        }}
+                      ></p>
+                    )}
+                    {hasCode && (
                       <p
                         className="item-text-chat"
                         dangerouslySetInnerHTML={{
@@ -726,12 +758,23 @@ function MainScreen() {
                         }}
                       ></p>
                     )}
-
-                    {inputClass === 'item-chat' &&
-                    actionMess === 'WAIT' &&
-                    item.message_id === messageStatus?.msg_id ? (
-                      <span className="streaming"></span>
+                    {!hasLink && !hasImage && !hasCode ? (
+                      item.role === 'User' ? (
+                        <p className="item-text-chat">{item.message}</p>
+                      ) : (
+                        <p
+                          className="item-text-chat"
+                          dangerouslySetInnerHTML={{
+                            __html: marked(
+                              item.message +
+                                '<span class="streaming" style="width: 11px; display: inline-block; height: 3px; background: #89a357;box-shadow: 0px 0px 4px 0px #5fff51;animation: blink 0.5s infinite;"></span>',
+                            ) as any,
+                          }}
+                        ></p>
+                      )
                     ) : null}
+
+                    {/* {hasCode && <span className="streaming"></span>} */}
                     {inputClass === 'item-chat' &&
                       hoverFeeback &&
                       hoverFeeback.msg_id === item.message_id &&
@@ -854,7 +897,7 @@ function MainScreen() {
                   id="send-text"
                   onClick={sendMessages}
                 >
-                  {textValue.trim() && stopGenerate ? (
+                  {textValue.trim().length > 0 && stopGenerate ? (
                     <img id="send-icon" src={IcondSendActive} alt="send-icon" />
                   ) : (
                     <img id="send-icon" src={IconSendBlur} alt="send-icon" />
@@ -915,6 +958,7 @@ function MainScreen() {
             width: '100vw',
             height: '100vh',
             backgroundColor: 'rgba(0, 0, 0, 0.88)',
+            // backgroundColor: 'white',
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
