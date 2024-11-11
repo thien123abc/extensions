@@ -234,7 +234,6 @@
         .item-text-chat {
           margin: 0px;
           display: inline;
-          white-space: pre-wrap;
 
           * {
             word-wrap: break-word;
@@ -257,6 +256,7 @@
             display: block;
             background-color: #3d3d43;
             width: fit-content;
+            text-shadow: none;
           }
           pre {
             background-color: #3d3d43; /* Nền màu xám nhạt cho code block */
@@ -279,6 +279,9 @@
             .operator {
               color: #999;
               background: #3d3d43;
+            }
+            .tag {
+              color: #fd2f4a;
             }
 
             .string {
@@ -371,6 +374,9 @@
           line-height: 24px;
           position: relative;
           padding: 10px 12px 14px 12px;
+          & > .item-text-chat {
+            white-space: pre-wrap;
+          }
 
           .custom-tippy-liked {
             width: 95px;
