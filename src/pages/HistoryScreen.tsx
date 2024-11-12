@@ -45,10 +45,17 @@ function HistoryScreen() {
     wrapperRef,
     () => {
       if (actionState && actionState.type === 'EDIT') {
-        const { id, text } = actionState;
-        setTitles((prev) => [...prev.filter((item2) => item2.id !== id), { id, text }]);
-        setActionState(null);
-        setIsInputFocused(false);
+        if (
+          titles.find((item) => item.id === actionState?.id)?.text.trim() === actionState?.text.trim() ||
+          titles.find((item2) => item2.id === actionState?.id)?.text.length === 0
+        ) {
+          const { id, text } = actionState;
+          setTitles((prev) => [...prev.filter((item2) => item2.id !== id), { id, text }]);
+          setActionState(null);
+          setIsInputFocused(false);
+        } else {
+          renderDataSave(actionState.id);
+        }
       }
     },
     'customSnackbar',
@@ -138,8 +145,11 @@ function HistoryScreen() {
   };
 
   const handleClickSaveEdit = async (e: React.MouseEvent<HTMLButtonElement>, conversation_id: string) => {
+    e.stopPropagation();
+    renderDataSave(conversation_id);
+  };
+  const renderDataSave = async (conversation_id: string) => {
     try {
-      e.stopPropagation();
       setIsSaving(true);
 
       const data = await saveConversationAsync({
