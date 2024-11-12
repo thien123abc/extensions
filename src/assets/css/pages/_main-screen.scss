@@ -168,6 +168,7 @@
       line-height: 23px;
       //max-height: 740px;
       overflow-y: scroll;
+      overflow-x: hidden;
       height: 85%;
 
       &::-webkit-scrollbar {
@@ -234,6 +235,12 @@
         .item-text-chat {
           margin: 0px;
           display: inline;
+          overflow-wrap: break-word;
+
+          & > blockquote {
+            border-left: 2px solid #94949e;
+            padding: 8px 16px;
+          }
 
           * {
             word-wrap: break-word;
@@ -253,7 +260,7 @@
             display: inline;
           }
           code {
-            display: block;
+            display: inline-block;
             background-color: #3d3d43;
             width: fit-content;
             text-shadow: none;
@@ -268,6 +275,15 @@
             font-family: monospace;
             font-size: 14px; /* Kích thước chữ */
             max-width: 100%; /* Đảm bảo chiếm hết chiều rộng khung chat */
+
+            code[class*='language-'] {
+              min-width: 350px;
+              overflow-x: auto;
+            }
+
+            code[class*='language-'] > span {
+              white-space: nowrap !important;
+            }
 
             & > code {
               color: #f5f5f5; /* Màu chữ sáng (trắng) */
@@ -324,7 +340,7 @@
           }
 
           #scroll-view-table {
-            overflow-x: auto;
+            // overflow-x: auto;
 
             &::-webkit-scrollbar {
               width: 5px;
@@ -338,8 +354,10 @@
           }
 
           table {
-            min-width: 100%;
             border-collapse: collapse;
+            overflow-x: auto;
+            display: block;
+            width: 100%;
 
             td,
             th {
@@ -374,9 +392,6 @@
           line-height: 24px;
           position: relative;
           padding: 10px 12px 14px 12px;
-          & > .item-text-chat {
-            white-space: pre-wrap;
-          }
 
           .custom-tippy-liked {
             width: 95px;
