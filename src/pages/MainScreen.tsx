@@ -436,7 +436,6 @@ function MainScreen() {
     setToastInfo(false);
   };
 
-  // Chặn việc nhập các ký tự không phải là chữ cái và số
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Xử lý khi nhấn Enter
     if (e.key === 'Enter') {
@@ -452,10 +451,10 @@ function MainScreen() {
         }
 
         // Gửi tin nhắn và reset lại ô nhập liệu
-        setTimeout(async () => {
-          setTextValue('');
-          await sendMessages();
-        }, 200);
+        // setTimeout(async () => {
+        // setTextValue('');
+        sendMessages();
+        // }, 200);
       }
     }
   };
@@ -531,7 +530,9 @@ function MainScreen() {
 
   useEffect(() => {
     const streamingElements = document.querySelectorAll('.streaming');
+    const child = document.querySelector('.item-text-chat>p:nth-child(2)') as HTMLElement;
     if (streamingElements.length > 0 && actionMess !== 'WAIT') {
+      if (child) child.style.display = 'none';
       for (let i = 0; i < streamingElements.length; i++) {
         const streamingElement = streamingElements[i] as HTMLElement;
         streamingElement.style.display = 'none';
@@ -638,13 +639,29 @@ function MainScreen() {
             {messages.map((item: IVsocStoredMessageStore, index) => {
               console.log('item', item.message_html);
               console.log('mark', item.message);
-              const hasImage = /^!\[([^\]]*)\]\((https?:\/\/[^\)]+)\)$/.test(item.message);
-              const hasLink = /\^[^\!]\[.*\]\(.*\)/.test(item.message);
+              const hasImage = /!\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/.test(item.message);
+              const hasLink = /^(?!.*!\[)[^!]*\[[^\]]+\]\([^\)]+\).*/.test(item.message);
               const hasCode =
-                /<pre><code[^>]*>(?!.*!\[.*\]\(.*\))(?!.*\[[^\]]*\]\([^\)]+\))[\s\S]*?<\/code><\/pre>/.test(
+                /<pre><code[^>]*>(?!.*!\[.*\]\(.*\))(?!.*\\?[\\(\[\])]([\s\S]*?))[\s\S]*?<\/code><\/pre>/.test(
                   item.message_html,
                 );
-              console.log('hasLink', hasCode);
+              const hasMath = /\\\([^\)]*\\\)|\\\[([^\]]*)\\\]/.test(item.message);
+              const isHasMathBlock = item.message_html.includes('<pre><code');
+              const htmlMathBlockReplace = item.message_html
+                .replace(/\(/g, '\\(')
+                .replace(/\)/g, '\\)')
+                .replace(/\[/g, '\\[') // Thay thế dấu [ thành \[
+                .replace(/\]/g, '\\]');
+              const htmlMathInlineReplace = (marked(item.message) as any)
+                .replace(/\(/g, '\\(')
+                .replace(/\)/g, '\\)')
+                .replace(/\[/g, '\\[') // Thay thế dấu [ thành \[
+                .replace(/\]/g, '\\]');
+              // console.log('hasCode', hasCode);
+              console.log('hasMath', hasMath);
+              console.log('block', htmlMathBlockReplace);
+              console.log('inline', htmlMathInlineReplace);
+              const text = 'Phép cộng: \\( a + b = c \\) và phép nhân: \\( x \\times y = z \\)';
 
               const renderer = new marked.Renderer();
               if (hasLink) {
@@ -758,7 +775,14 @@ function MainScreen() {
                         }}
                       ></p>
                     )}
-                    {!hasLink && !hasImage && !hasCode ? (
+                    {hasMath ? (
+                      // isHasMathBlock ? (
+
+                      // ) : (
+
+                      <></>
+                    ) : null}
+                    {!hasLink && !hasImage && !hasCode && !hasMath ? (
                       item.role === 'User' ? (
                         <p className="item-text-chat">{item.message}</p>
                       ) : (
@@ -795,11 +819,7 @@ function MainScreen() {
                             bottom: '-22px',
                           }}
                         >
-                          <Tippy
-                            content={copiedMessage[item.message_id] ? 'Pressed' : 'Copy'}
-                            interactive
-                            placement="bottom"
-                          >
+                          <Tippy content={copiedMessage[item.message_id] ? '' : 'Copy'} interactive placement="bottom">
                             <IconButton
                               sx={{ padding: 0 }}
                               onClick={() => handleCopy(item.message, item.message_id as string)}
