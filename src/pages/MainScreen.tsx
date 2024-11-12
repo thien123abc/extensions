@@ -38,7 +38,7 @@ import Prism from 'prismjs';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import logoImage from '../assets/images/vSOC-logo.png';
-import childImage from '../assets/images/child.png';
+// import childImage from '../assets/images/child.png';
 import IconClose from '../assets/icons/icon-close.svg';
 import IconDownload from '../assets/icons/icon-download.svg';
 
@@ -325,21 +325,21 @@ function MainScreen() {
       messages.push(msg);
       setForceRenderValue((prev) => prev + 1);
       scrollToBottom();
-      if (messages.length <= 1) {
-        conversation_id = await createConversation(textValue, 'QA');
-        setCurrentConversationID(conversation_id);
-        msg.conversation_id = conversation_id;
-        await saveMessage(msg);
-        setForceRenderValue((prev) => prev + 1);
-      } else {
-        conversation_id = currentConversationID;
-        await saveMessage(msg);
-        await api.message.sendAsync({
-          conversation_id: conversation_id,
-          text: textValue,
-        });
-      }
-      await getListData(conversation_id);
+      // if (messages.length <= 1) {
+      //   conversation_id = await createConversation(textValue, 'QA');
+      //   setCurrentConversationID(conversation_id);
+      //   msg.conversation_id = conversation_id;
+      //   await saveMessage(msg);
+      //   setForceRenderValue((prev) => prev + 1);
+      // } else {
+      //   conversation_id = currentConversationID;
+      //   await saveMessage(msg);
+      //   await api.message.sendAsync({
+      //     conversation_id: conversation_id,
+      //     text: textValue,
+      //   });
+      // }
+      await getListData('1');
     } catch (error) {
       setActionMess('');
     }
@@ -501,8 +501,8 @@ function MainScreen() {
 
   // Hàm xử lý khi ảnh lỗi
   const handleImageError = (e: any) => {
-    // e.target.src = logoImage;
-    e.target.src = childImage;
+    e.target.src = logoImage;
+    // e.target.src = childImage;
     setIsLoadedImgError(true);
     setSelectedImage(e.target.src);
   };
@@ -539,6 +539,69 @@ function MainScreen() {
       }
     }
   }, [msgRef.current, actionMess]);
+
+  const isCodeBlockRef = useRef(false);
+  useEffect(() => {
+    if (isCodeBlockRef.current) {
+      const preElements = document.querySelectorAll('pre[class*="language"]') as NodeListOf<HTMLElement>;
+      console.log(preElements);
+      if (preElements.length) {
+        preElements.forEach((pre: HTMLElement) => {
+          // Đặt position relative cho <pre>
+          pre.style.position = 'relative';
+
+          // Kiểm tra nếu nút đã tồn tại thì không tạo thêm
+          if (pre.querySelector('button')) return;
+
+          // Tạo nút button
+          const copyButton = document.createElement('button');
+          copyButton.innerText = 'Copy';
+          copyButton.style.position = 'absolute';
+          copyButton.style.top = '10px';
+          copyButton.style.right = '10px';
+          copyButton.style.width = '60px';
+          copyButton.style.height = '25px';
+          copyButton.style.backgroundColor = '#007bff'; // Nền xanh
+          copyButton.style.color = '#fff'; // Màu chữ trắng
+          copyButton.style.border = 'none';
+          copyButton.style.borderRadius = '4px';
+          copyButton.style.cursor = 'pointer';
+          copyButton.style.zIndex = '999';
+
+          // Thêm sự kiện click cho nút Copy
+          copyButton.addEventListener('click', () => {
+            // Lấy nội dung của thẻ <code> bên trong <pre>
+            const codeElement = pre.querySelector('code');
+            if (codeElement) {
+              const codeContent = codeElement.innerText;
+              // Sao chép nội dung vào clipboard
+              navigator.clipboard
+                .writeText(codeContent)
+                .then(() => {
+                  // Khi copy thành công
+                  copyButton.innerText = 'Copied!';
+                  copyButton.style.cursor = 'default';
+                  copyButton.disabled = true; // Vô hiệu hóa nút
+
+                  // Sau 1 giây, khôi phục nút về trạng thái ban đầu
+                  setTimeout(() => {
+                    copyButton.innerText = 'Copy';
+                    copyButton.style.cursor = 'pointer';
+                    copyButton.disabled = false; // Bật lại nút
+                  }, 1000);
+                })
+                .catch((err) => {
+                  console.error('Failed to copy text: ', err);
+                });
+            }
+          });
+
+          // Thêm nút vào bên trong thẻ <pre>
+          pre.appendChild(copyButton);
+        });
+      }
+    }
+  }, [isCodeBlockRef.current, actionMess, msgRef.current]);
 
   return (
     <div id="main-screen" className="container">
@@ -645,6 +708,7 @@ function MainScreen() {
                 /<pre><code[^>]*>(?!.*!\[.*\]\(.*\))(?!.*\\?[\\(\[\])]([\s\S]*?))[\s\S]*?<\/code><\/pre>/.test(
                   item.message_html,
                 );
+              isCodeBlockRef.current = hasCode;
               const hasMath = /\\\([^\)]*\\\)|\\\[([^\]]*)\\\]/.test(item.message);
               const isHasMathBlock = item.message_html.includes('<pre><code');
               const htmlMathBlockReplace = item.message_html
@@ -659,6 +723,7 @@ function MainScreen() {
                 .replace(/\]/g, '\\]');
               // console.log('hasCode', hasCode);
               console.log('hasMath', hasMath);
+              console.log('hasCode', hasCode);
               console.log('block', htmlMathBlockReplace);
               console.log('inline', htmlMathInlineReplace);
               const text = 'Phép cộng: \\( a + b = c \\) và phép nhân: \\( x \\times y = z \\)';
