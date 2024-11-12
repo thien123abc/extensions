@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, Button, FormHelperText, Input, Typography } from '@mui/material';
 import CloseIconGray from '../assets/icons/icon-close-gray.svg';
 import { MAX_CHAR_INPUT_LENGTH } from '../pages/HistoryScreen';
@@ -30,13 +30,18 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [inputValue, setInputValue] = useState(initialInputValue);
+  const [widthWrapper, setWidthWrapper] = useState<string>(widthBox);
 
   const wrapperRef = useRef(null);
 
   useOutsideClick(
     wrapperRef,
     () => {
-      onClose();
+      if (inputValue === initialInputValue || inputValue.trim().length === 0) {
+        onClose();
+      } else {
+        onClick(inputValue);
+      }
       setIsOpen(false);
     },
     'customSnackbar',
@@ -46,6 +51,29 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
     onClick(inputValue);
     !isEditingTitle && setIsOpen(false);
   };
+
+  const calculateLeftOffset = () => {
+    if (wrapperRef.current) {
+      const viewportWidth = window.innerWidth;
+      const offsetWidth = 400;
+      if (viewportWidth <= offsetWidth) {
+        setWidthWrapper(`${viewportWidth - 50}px`);
+      } else {
+        setWidthWrapper(widthBox);
+      }
+    }
+  };
+  console.log('width', widthWrapper);
+
+  useEffect(() => {
+    calculateLeftOffset();
+    // Thêm event listener khi thay đổi kích thước màn hình
+    window.addEventListener('resize', calculateLeftOffset);
+    // Dọn dẹp event listener khi component unmount
+    return () => {
+      window.removeEventListener('resize', calculateLeftOffset);
+    };
+  }, []);
 
   if (!isOpen) return null;
   return (
@@ -67,7 +95,7 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
           left: '50%',
           transform: 'translate(-50%, -50%)',
           backgroundColor: '#303036',
-          width: widthBox,
+          width: widthWrapper,
           height: heightBox,
           borderRadius: '8px',
           boxShadow: '4px 2px 32px 0px #000000',
@@ -154,7 +182,7 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
                   }}
                   autoFocus
                   sx={{
-                    width: '352px',
+                    width: widthWrapper,
                     height: '40px',
                     backgroundColor: '#424242',
                     color: 'white',
@@ -205,7 +233,7 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
               sx={{
                 backgroundColor: '#494950',
                 borderRadius: '4px',
-                width: '168px',
+                width: widthWrapper !== widthBox ? '0px' : '168px',
                 height: '40px',
                 padding: '10px 28px',
                 textTransform: 'none',
@@ -227,7 +255,7 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
               sx={{
                 backgroundColor: '#FD2F4A',
                 borderRadius: '4px',
-                width: '168px',
+                width: widthWrapper !== widthBox ? '0px' : '168px',
                 height: '40px',
                 padding: '10px 28px',
                 textTransform: 'none',
