@@ -129,6 +129,7 @@ const markDifyResponseEnd = (
     task_id: ids.task_id,
   };
   conversationHub[conversationId].push(msg);
+  localStorage.setItem('lastestMsgId', JSON.stringify(ids.msg_id));
 };
 
 type RoleInfo = {
@@ -249,6 +250,17 @@ export const getNextMessageAsync = (arg: IVsocGetNextMessageArgs) => {
     resolve({
       status: 0,
       result: message,
+    });
+  });
+};
+export const stopNextMessageAsync = (arg: IVsocGetNextMessageArgs) => {
+  return new Promise<IVsocApiResult<IVsocGetNextMessageResult>>((resolve) => {
+    if (!arg.conversation_id || !(arg.conversation_id in conversationHub)) {
+      throw new Error(`conversation_id ${arg.conversation_id} is not found`);
+    }
+    conversationHub[arg.conversation_id] = [];
+    resolve({
+      status: 0,
     });
   });
 };
