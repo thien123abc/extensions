@@ -227,7 +227,7 @@ function HistoryScreen() {
         </div>
       </div>
       <div className="body-panel">
-        {!loading && conversationTimes.length ? (
+        {!loading ? (
           conversations.length > 0 ? (
             <div className="his-chat-panel">
               <div className="chat-panel-container" ref={wrapperRef}>
@@ -403,7 +403,12 @@ function HistoryScreen() {
               <button onClick={gotoChat}>Chat với vSOC</button>
             </div>
           )
-        ) : null}
+        ) : (
+          <div className="no-data-view">
+            <img src={require('../assets/images/no-message-icon.png')} alt="no-data"></img>
+            <p>Đang tải hội thoại</p>
+          </div>
+        )}
       </div>
       {toastInfo && (
         <ToastNotification
