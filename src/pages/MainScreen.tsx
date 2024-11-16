@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable no-useless-escape */
 import { useHistory, useLocation } from 'react-router-dom';
@@ -42,6 +43,12 @@ import childImage from '../assets/images/child.png';
 import IconClose from '../assets/icons/icon-close.svg';
 import IconDownload from '../assets/icons/icon-download.svg';
 import Test from '../components/Test';
+import { useSelector } from 'react-redux';
+import { AppDispatch, RootState } from '../store/store';
+import { useDispatch } from 'react-redux';
+import { BotRunStatusEnum, setBotRunStatus } from '../store/chatSlice';
+import IconDownGray from '../assets/icons/icon-down-gray.svg';
+const Latex = require('react-latex');
 
 interface IVsocStoredMessageStore extends IVsocStoredMessage {
   isStored?: boolean;
@@ -70,7 +77,7 @@ function MainScreen() {
   const [errorMessage, setErrorMessage] = useState('');
   const [stopGenerate, setStopGenerate] = useState(false);
   const [messageStatus, setMessageStatus] = useState<{ msg_id: string; msg_type: 'user' | 'bot'; task_id: string }>();
-  const [leftOffset, setLeftOffset] = useState({ range: 0, isBigger: false });
+  const [leftOffset, setLeftOffset] = useState({ width: '0px', heigth: '0px' });
 
   const isStopAnswerRef = useRef(false);
   const messageItemRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -78,6 +85,11 @@ function MainScreen() {
   const msgRef = useRef<string>('');
   const imgRef = useRef<HTMLImageElement | null>(null);
   const pRef = useRef<HTMLParagraphElement | null>(null);
+  const actionRef = useRef('');
+
+  const isBotRunStatusRedux = useSelector((state: RootState) => state.botStatus.isBotRunStatus);
+  const isChatBlockCode = useSelector((state: RootState) => state.botStatus.isChatBlockCode);
+  const dispatch: AppDispatch = useDispatch();
 
   chrome?.runtime?.onMessage?.addListener((message: IChromeMessage) => {
     if (message && message.type === 'text_from_monitor') {
@@ -122,7 +134,13 @@ function MainScreen() {
     silent: true,
   });
 
-  const handleCopy = (messageContent: string, messageId: string) => {
+  const handleCopy = (messageId: string, index: number) => {
+    const messageContent = copyContentRef.current.find((item) => item.position === index)?.content as string;
+    console.log(
+      'target',
+      copyContentRef.current.find((item) => item.position === index),
+    );
+
     navigator.clipboard
       .writeText(messageContent)
       .then(() => {
@@ -168,13 +186,13 @@ function MainScreen() {
       conversation_id: id,
       limit: 30,
     });
-
+    console.log('api1', listMessages);
     const dataMessagesApi = (await getMessagesApiAsync({ conversation_id: id, limit: 30 }))
       .result as IVsocGetMessageApiArgs[];
+    console.log('api', dataMessagesApi);
 
     if (listMessages.result) {
-      const filterListMsg = listMessages.result.filter((item) => !(item.message === 'NONE'));
-      console.log('api', filterListMsg);
+      const filterListMsg = listMessages.result.filter((item) => !(item.message === ''));
       const _list: IVsocStoredMessageStore[] = [];
       for (const item of filterListMsg) {
         _list.push({
@@ -282,7 +300,7 @@ function MainScreen() {
         conversation_id: id,
         feedback: null,
         isStored: true,
-        message: 'NONE',
+        message: '',
         message_html: '',
         role: 'Customer Support',
         type: 'break_paragraph',
@@ -370,6 +388,8 @@ function MainScreen() {
   const handleStopGenarate = async () => {
     isStopAnswerRef.current = true;
     setActionMess('DONE');
+    messages[messages.length - 1].action = 'DONE';
+
     await stopNextMessageAsync({ conversation_id: currentConversationID });
     if (messageStatus?.task_id) {
       await stopGenarateAsync(messageStatus.task_id);
@@ -462,6 +482,7 @@ function MainScreen() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const area = document.querySelector('.container__cursor') as HTMLSpanElement;
     // Xử lý khi nhấn Enter
     if (e.key === 'Enter') {
       if (e.ctrlKey && textValue.trim()) {
@@ -472,10 +493,14 @@ function MainScreen() {
           e.preventDefault();
           return false;
         }
-
+        if (area) area.style.left = '0px';
         sendMessages();
       }
     }
+  };
+  const handleBlur = () => {
+    const area = document.querySelector('.container__cursor') as HTMLSpanElement;
+    if (area) area.remove();
   };
 
   useEffect(() => {
@@ -500,8 +525,8 @@ function MainScreen() {
     setSelectedImage('');
   };
 
-  const handleDownloadImage = () => {
-    fetch(selectedImage, { method: 'GET', headers: {} })
+  const handleDownloadImage = (src?: string) => {
+    fetch(src ? src : selectedImage, { method: 'GET', headers: {} })
       .then((response) => {
         response.arrayBuffer().then(function (buffer) {
           const url = window.URL.createObjectURL(new Blob([buffer]));
@@ -531,9 +556,17 @@ function MainScreen() {
     if (imgRef.current) {
       const imgWidth = imgRef.current.naturalWidth;
       const imgHeight = imgRef.current.naturalHeight;
-      const offsetWidth = (viewportWidth - imgWidth) / 2;
-      const offsetHeight = (viewportHeight - imgHeight) / 2;
-      setLeftOffset({ range: Math.ceil(Math.abs(offsetWidth)), isBigger: offsetHeight >= 182 ? false : true });
+      // const offsetWidth = (viewportWidth - imgWidth) / 2;
+      // const offsetHeight = (viewportHeight - imgHeight) / 2;
+      // setLeftOffset({ range: Math.ceil(Math.abs(offsetWidth)), isBigger: offsetHeight >= 182 ? false : true });
+      if (imgWidth > viewportWidth) {
+        setLeftOffset((prev) => ({ ...prev, width: '100%' }));
+      } else setLeftOffset((prev) => ({ ...prev, width: `${imgWidth}px` }));
+      if (imgHeight > viewportHeight) {
+        setLeftOffset((prev) => ({ ...prev, heigth: '100%' }));
+      } else {
+        setLeftOffset((prev) => ({ ...prev, heigth: `${imgHeight}px` }));
+      }
     }
     if (detailHis && pRef.current) {
       const pWidth = pRef.current.offsetWidth;
@@ -544,6 +577,8 @@ function MainScreen() {
       }
     }
   };
+  console.log('set', leftOffset);
+
   useEffect(() => {
     calculateLeftOffset();
     window.addEventListener('resize', calculateLeftOffset);
@@ -553,80 +588,205 @@ function MainScreen() {
   }, [selectedImage]);
 
   useEffect(() => {
-    const streamingElements = document.querySelectorAll('.streaming');
-    const child = document.querySelector('.item-text-chat>p:nth-child(2)') as HTMLElement;
-    if (streamingElements.length > 0 && actionMess !== 'WAIT') {
-      if (child) child.style.display = 'none';
-      for (let i = 0; i < streamingElements.length; i++) {
-        const streamingElement = streamingElements[i] as HTMLElement;
-        streamingElement.style.display = 'none';
+    const streamingElementsUser = document.querySelectorAll('.user-item-chat .streaming');
+    const streamingElementsBot = document.querySelectorAll('.item-text-chat .streaming');
+    streamingElementsUser.forEach((el) => el.remove());
+    streamingElementsBot.forEach((el, index) => {
+      if (actionMess === 'WAIT') {
+        index !== streamingElementsBot.length - 1 && el.remove();
+      } else {
+        el.remove();
       }
-    }
-  }, [msgRef.current, actionMess]);
+    });
+  }, [msgRef.current, actionMess, forceRenderValue]);
 
   const isCodeBlockRef = useRef(false);
   useEffect(() => {
-    if (isCodeBlockRef.current) {
-      const preElements = document.querySelectorAll('pre[class*="language"]') as NodeListOf<HTMLElement>;
-      if (preElements.length) {
-        preElements.forEach((pre: HTMLElement) => {
-          // Đặt position relative cho <pre>
-          pre.style.position = 'relative';
+    const preElements = document.querySelectorAll(
+      'pre[class*="language"]:not([class*="language-markdown"])',
+    ) as NodeListOf<HTMLElement>;
+    console.log('prev', preElements);
 
-          // Kiểm tra nếu nút đã tồn tại thì không tạo thêm
-          if (pre.querySelector('button')) return;
+    if (preElements.length) {
+      preElements.forEach((pre: HTMLElement) => {
+        // Đặt position relative cho <pre>
+        pre.style.position = 'relative';
 
-          // Tạo nút button
-          const copyButton = document.createElement('button');
-          copyButton.innerText = 'Copy';
-          copyButton.style.position = 'absolute';
-          copyButton.style.top = '10px';
-          copyButton.style.right = '12px';
-          copyButton.style.width = '60px';
-          copyButton.style.height = '32px';
-          copyButton.style.backgroundColor = '#494950';
-          copyButton.style.color = '#E5E5E7';
-          copyButton.style.fontWeight = '500';
-          copyButton.style.fontSize = '14px';
-          copyButton.style.border = 'none';
-          copyButton.style.borderRadius = '4px';
-          copyButton.style.cursor = 'pointer';
-          copyButton.style.zIndex = '999';
+        // Kiểm tra nếu nút đã tồn tại thì không tạo thêm
+        if (pre.querySelector('button')) return;
 
-          // Thêm sự kiện click cho nút Copy
-          copyButton.addEventListener('click', () => {
-            // Lấy nội dung của thẻ <code> bên trong <pre>
-            const codeElement = pre.querySelector('code');
-            if (codeElement) {
-              const codeContent = codeElement.innerText;
-              // Sao chép nội dung vào clipboard
-              navigator.clipboard
-                .writeText(codeContent)
-                .then(() => {
-                  // Khi copy thành công
-                  copyButton.innerText = 'Copied';
-                  copyButton.style.cursor = 'default';
-                  copyButton.disabled = true; // Vô hiệu hóa nút
+        // Tạo nút button
+        const copyButton = document.createElement('button');
+        copyButton.innerText = 'Copy';
+        copyButton.style.position = 'absolute';
+        copyButton.style.top = '10px';
+        copyButton.style.right = '12px';
+        copyButton.style.width = '60px';
+        copyButton.style.height = '32px';
+        copyButton.style.backgroundColor = '#494950';
+        copyButton.style.color = '#E5E5E7';
+        copyButton.style.fontWeight = '500';
+        copyButton.style.fontSize = '14px';
+        copyButton.style.border = 'none';
+        copyButton.style.borderRadius = '4px';
+        copyButton.style.cursor = 'pointer';
+        copyButton.style.zIndex = '999';
 
-                  // Sau 1 giây, khôi phục nút về trạng thái ban đầu
-                  setTimeout(() => {
-                    copyButton.innerText = 'Copy';
-                    copyButton.style.cursor = 'pointer';
-                    copyButton.disabled = false; // Bật lại nút
-                  }, 1000);
-                })
-                .catch((err) => {
-                  console.error('Failed to copy text: ', err);
-                });
-            }
-          });
+        // Thêm sự kiện click cho nút Copy
+        copyButton.addEventListener('click', () => {
+          // Lấy nội dung của thẻ <code> bên trong <pre>
+          const codeElement = pre.querySelector('code');
+          if (codeElement) {
+            const codeContent = codeElement.innerText;
+            // Sao chép nội dung vào clipboard
+            navigator.clipboard
+              .writeText(codeContent)
+              .then(() => {
+                // Khi copy thành công
+                copyButton.innerText = 'Copied';
+                copyButton.style.cursor = 'default';
+                copyButton.disabled = true; // Vô hiệu hóa nút
 
-          // Thêm nút vào bên trong thẻ <pre>
-          pre.appendChild(copyButton);
+                // Sau 1 giây, khôi phục nút về trạng thái ban đầu
+                setTimeout(() => {
+                  copyButton.innerText = 'Copy';
+                  copyButton.style.cursor = 'pointer';
+                  copyButton.disabled = false; // Bật lại nút
+                }, 1000);
+              })
+              .catch((err) => {
+                console.error('Failed to copy text: ', err);
+              });
+          }
         });
-      }
+
+        // Thêm nút vào bên trong thẻ <pre>
+        pre.appendChild(copyButton);
+      });
     }
-  }, [isCodeBlockRef.current, actionMess, msgRef.current]);
+  }, [isCodeBlockRef.current, actionMess, msgRef.current, forceRenderValue]);
+
+  // // Hàm tách HTML và công thức
+  const parseText = (text: string) => {
+    const regex = /\\(\(|\[)(.*?)\\(\)|\])/g; // Tìm công thức toán học (\\( ... \\))
+    let lastIndex = 0;
+    const parts = [];
+
+    // Chạy qua tất cả các công thức toán học và chia chúng ra
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      // Thêm phần HTML trước công thức
+      if (match.index > lastIndex) {
+        parts.push({ type: 'html', content: text.slice(lastIndex, match.index) });
+      }
+      // Thêm công thức toán học
+      parts.push({ type: 'latex', content: match[0] });
+      lastIndex = regex.lastIndex;
+    }
+
+    // Thêm phần còn lại của HTML nếu có
+    if (lastIndex < text.length) {
+      parts.push({ type: 'html', content: text.slice(lastIndex) });
+    }
+
+    return parts;
+  };
+  const [katex, setKatex] = useState<string[]>([]);
+  const katexRef = useRef<Element[]>([]);
+
+  useEffect(() => {
+    // Lấy tất cả các phần tử có lớp 'katex-html' và loại bỏ chúng
+    const katexHtmlElements = document.querySelectorAll('.katex-html');
+    katexHtmlElements.forEach((el) => el.remove());
+    const katexMathmlElements = document.querySelectorAll('.katex');
+    katexMathmlElements.forEach((el) => katexRef.current.push(el));
+    const htmlStrings = katexRef.current.map((el) => el.outerHTML);
+    setKatex(htmlStrings);
+  }, [actionMess, msgRef.current, forceRenderValue]);
+  // console.log('arrr', katex);
+  console.log('actionmess', actionMess);
+
+  const copyContentRef = useRef<{ position: number; content: string }[]>([]);
+
+  useEffect(() => {
+    const contents = document.querySelectorAll('.item-chat');
+    contents.forEach((el, index) => {
+      const parsedContent = (el.textContent as string).replace(/\[\s?[x ]\s?\]/g, '');
+      console.log('pcontent', parsedContent);
+
+      copyContentRef.current.push({ position: 2 * index + 1, content: parsedContent });
+    });
+  }, [forceRenderValue, actionMess, msgRef.current]);
+
+  useEffect(() => {
+    const containerEle = document.getElementById('container');
+    const textarea = document.getElementById('textarea') as HTMLTextAreaElement;
+    if (containerEle && textarea) {
+      const mirroredEle = document.createElement('div');
+      mirroredEle.textContent = textarea.value;
+      mirroredEle.classList.add('container__mirror');
+      containerEle.prepend(mirroredEle);
+
+      const textareaStyles = window.getComputedStyle(textarea);
+      [
+        'border',
+        'boxSizing',
+        'fontFamily',
+        'fontSize',
+        'fontWeight',
+        'letterSpacing',
+        'lineHeight',
+        'padding',
+        'textDecoration',
+        'textIndent',
+        'textTransform',
+        'whiteSpace',
+        'wordSpacing',
+        'wordWrap',
+      ].forEach((property: any) => {
+        mirroredEle.style[property] = textareaStyles[property];
+      });
+      mirroredEle.style.borderColor = 'transparent';
+
+      const parseValue = (v: any) => (v.endsWith('px') ? parseInt(v.slice(0, -2), 10) : 0);
+      const borderWidth = parseValue(textareaStyles.borderWidth);
+
+      const ro = new ResizeObserver(() => {
+        mirroredEle.style.width = `${textarea.clientWidth + 2 * borderWidth}px`;
+        mirroredEle.style.height = `${textarea.clientHeight + 2 * borderWidth}px`;
+      });
+      ro.observe(textarea);
+
+      textarea.addEventListener('scroll', () => {
+        mirroredEle.scrollTop = textarea.scrollTop;
+      });
+
+      const handleSelectionChange = () => {
+        if (document.activeElement !== textarea) {
+          return;
+        }
+        const cursorPos = textarea.selectionStart;
+        const textBeforeCursor = textarea.value.substring(0, cursorPos);
+        const textAfterCursor = textarea.value.substring(cursorPos);
+
+        const pre = document.createTextNode(textBeforeCursor);
+        const post = document.createTextNode(textAfterCursor);
+        const caretEle = document.createElement('span');
+        caretEle.classList.add('container__cursor');
+        caretEle.innerHTML = '&nbsp;';
+
+        mirroredEle.innerHTML = '';
+        mirroredEle.append(pre, caretEle, post);
+      };
+      document.addEventListener('selectionchange', handleSelectionChange);
+      document.addEventListener('input', handleSelectionChange);
+
+      return () => {
+        document.removeEventListener('selectionchange', handleSelectionChange);
+        document.removeEventListener('input', handleSelectionChange);
+      };
+    }
+  }, []);
 
   return (
     <div id="main-screen" className="container">
@@ -663,6 +823,8 @@ function MainScreen() {
               <button
                 onClick={() => {
                   history.push('/history');
+
+                  // handleStopGenarate();
                 }}
               >
                 <img id="menu-icon" src={require('../assets/images/back-icon.png')} alt="back-icon" />
@@ -719,32 +881,29 @@ function MainScreen() {
         {messages.length > 0 ? (
           <div ref={scrollRef} id="text-chat-panel" className="text-chat-panel">
             {messages.map((item: IVsocStoredMessageStore, index) => {
-              console.log('item', item.message_html);
-              console.log('mark', item.message);
+              console.log('item', item);
+              // console.log('mark', item.message);
               const hasImage = /!\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/.test(item.message);
               const hasLink = /^(?!.*!\[)[^!]*\[[^\]]+\]\([^\)]+\).*/.test(item.message);
               const hasCode =
-                /<pre><code[^>]*>(?!.*(?:\\\(|\\\)|\\\[|\\\]|!\[.*\]\(.*\)|\[[^\]]+\]\([^\)]+\)))[\s\S]*?<\/code><\/pre>/.test(
+                /<pre><code(?![^>]*class=["'][^"']*language-markdown[^"']*["'])[^\0]*>(?!.*(?:\\\(|\\\)|\\\[|\\\]|!\[.*\]\(.*\)|\[[^\]]+\]\([^\)]+\)))[\s\S]*?<\/code><\/pre>/.test(
+                  item.message_html,
+                );
+              isCodeBlockRef.current = hasCode;
+              const hasMarkdown =
+                /<pre><code[^>]*class=["'][^"']*language-markdown[^"']*["'][^>]*>[\s\S]*?<\/code><\/pre>/.test(
                   item.message_html,
                 );
               const hasMath = /\\\([^\)]*\\\)|\\\[([^\]]*)\\\]/.test(item.message);
-              isCodeBlockRef.current = hasCode;
-              const isHasMathBlock = item.message_html.includes('<pre><code');
+
               const htmlMathBlockReplace = item.message_html
                 .replace(/\(/g, '\\(')
                 .replace(/\)/g, '\\)')
-                .replace(/\[/g, '\\[') // Thay thế dấu [ thành \[
+                .replace(/\[/g, '\\[')
                 .replace(/\]/g, '\\]');
-              const htmlMathInlineReplace = (marked(item.message) as any)
-                .replace(/\(/g, '\\(')
-                .replace(/\)/g, '\\)')
-                .replace(/\[/g, '\\[') // Thay thế dấu [ thành \[
-                .replace(/\]/g, '\\]');
-              // console.log('hasCode', hasCode);
-              console.log('hasCode', hasCode);
-              // console.log('block', htmlMathBlockReplace);
-              // console.log('inline', htmlMathInlineReplace);
-              // const text = 'Phép cộng: \\( a + b = c \\) và phép nhân: \\( x \\times y = z \\)';
+              const parsedText = parseText(item.message);
+
+              // console.log('math', parsedText);
 
               const renderer = new marked.Renderer();
               if (hasLink) {
@@ -765,25 +924,10 @@ function MainScreen() {
               const bgRole =
                 item.role in builtinRoles ? builtinRoles[item.role].background_color : defaultRole.background_color;
               const imgRole = item.role in builtinRoles ? builtinRoles[item.role].avatar : defaultRole.avatar;
-              // let raw_html = '';
-              // let raw_html_table = '';
-              // const raw_html_list = item.message_html.split('<table>');
-              // console.log('raw_html_list', raw_html_list);
-              // raw_html_list.forEach((itemText) => {
-              //   raw_html += itemText + '<div id="scroll-view-table"><table>';
-              // });
-              // console.log('raw_html', raw_html);
 
-              // const raw_html_list_tail = raw_html.split('</table>');
-              // console.log('raw_html_list_tail', raw_html_list_tail);
-              // raw_html_list_tail.forEach((itemText) => {
-              //   raw_html_table += itemText + '</table></div>';
-              // });
-              // console.log('raw_html_table', raw_html_table);
               const sanitizedHtml =
                 DOMPurify.sanitize(item.message_html) +
                 '<span class="streaming" style="width: 11px; display: inline-block; height: 3px; background: #89a357;box-shadow: 0px 0px 4px 0px #5fff51;animation: blink 0.5s infinite;"></span>';
-              // sanitizedHtml += '<span className="streaming"></span>';
               msgRef.current = sanitizedHtml;
 
               return (
@@ -821,20 +965,28 @@ function MainScreen() {
                         components={{
                           img: ({ src, alt }) => (
                             <Tippy content="Xem chi tiết" interactive placement="top">
-                              <img
-                                src={!isLoadedImgError ? src : selectedImage}
-                                alt={alt}
-                                style={{
-                                  width: '160px',
-                                  height: '160px',
-                                  objectFit: 'cover',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                }}
-                                onClick={() => handleImageClick(src as string)}
-                                onError={handleImageError}
-                                ref={imgRef}
-                              />
+                              <div className="img-download">
+                                <img
+                                  src={!isLoadedImgError ? src : selectedImage}
+                                  alt={alt}
+                                  style={{
+                                    width: '160px',
+                                    height: '160px',
+                                    objectFit: 'cover',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                  }}
+                                  onClick={() => handleImageClick(src as string)}
+                                  onError={handleImageError}
+                                  ref={imgRef}
+                                />
+                                <img
+                                  src={IconDownGray}
+                                  alt="icon-down"
+                                  style={{ position: 'absolute', right: '10px', top: '10px' }}
+                                  onClick={() => handleDownloadImage(src)}
+                                />
+                              </div>
                             </Tippy>
                           ),
                         }}
@@ -850,22 +1002,29 @@ function MainScreen() {
                         }}
                       ></p>
                     )}
-                    {hasCode && (
+                    {hasCode || hasMarkdown ? (
                       <p
                         className="item-text-chat"
                         dangerouslySetInnerHTML={{
                           __html: sanitizedHtml,
                         }}
                       ></p>
-                    )}
-                    {/* {hasMath ? (
-                      // isHasMathBlock ? (
+                    ) : null}
+                    {hasMath &&
+                      parsedText.map((part, index) => {
+                        if (part.type === 'html') {
+                          return (
+                            <span
+                              key={index}
+                              dangerouslySetInnerHTML={{ __html: marked(part.content, { renderer }) as any }}
+                            />
+                          );
+                        } else if (part.type === 'latex') {
+                          return <Latex>{part.content}</Latex>;
+                        }
+                      })}
 
-                      // ) : (
-
-                      <></>
-                    ) : null} */}
-                    {!hasLink && !hasImage && !hasCode ? (
+                    {!hasLink && !hasImage && !hasCode && !hasMath && !hasMarkdown ? (
                       item.role === 'User' ? (
                         <p className="item-text-chat">{item.message}</p>
                       ) : (
@@ -881,11 +1040,10 @@ function MainScreen() {
                       )
                     ) : null}
 
-                    {/* {hasCode && <span className="streaming"></span>} */}
                     {inputClass === 'item-chat' &&
                       hoverFeeback &&
                       hoverFeeback.msg_id === item.message_id &&
-                      item.action === 'DONE' && (
+                      ((actionMess === 'WAIT' && item.action === 'DONE') || actionMess !== 'WAIT') && (
                         <Box
                           ref={feedbackRef}
                           sx={{
@@ -909,7 +1067,7 @@ function MainScreen() {
                           >
                             <IconButton
                               sx={{ padding: 0 }}
-                              onClick={() => handleCopy(item.message, item.message_id as string)}
+                              onClick={() => handleCopy(item.message_id as string, index)}
                             >
                               {copiedMessage[item.message_id] ? (
                                 <img src={IconPressed} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
@@ -979,9 +1137,10 @@ function MainScreen() {
           </p>
         ) : null}
         <div className="input-chat">
-          <div className="view-chat">
+          <div className="container" id="container">
             <textarea
-              className="txt-area-content"
+              id="textarea"
+              className="container__textarea"
               placeholder="Nhập prompt..."
               value={textValue}
               onChange={(e) => {
@@ -990,6 +1149,7 @@ function MainScreen() {
               onDrop={handleDrop}
               onPaste={handlePaste}
               onKeyDown={handleKeyDown}
+              onBlur={handleBlur}
             />
 
             <Tippy content={actionMess === 'WAIT' ? 'Dừng' : 'Gửi'} interactive placement="top">
@@ -1040,7 +1200,7 @@ function MainScreen() {
             feebackResponse
               ? 'Đánh giá phản hồi chưa được ghi nhận, vui lòng thử lại'
               : errorMessage.length
-                ? 'Nội dung sai định dạng'
+                ? 'Hệ thống hiện tại chưa hỗ trợ định dạng [định dạng nhập/paste]'
                 : 'Đổi tên thất bại'
           }
           handleClose={() => {
@@ -1085,36 +1245,37 @@ function MainScreen() {
               src={selectedImage}
               alt="Full Size"
               style={{
-                width: imgRef.current
-                  ? leftOffset.isBigger
-                    ? window.innerWidth - 100
-                    : imgRef.current.naturalWidth
-                  : 0,
-                height: imgRef.current
-                  ? leftOffset.isBigger
-                    ? window.innerHeight - 91
-                    : imgRef.current.naturalHeight
-                  : 0,
-                objectFit: 'cover',
+                width: `${leftOffset.width}`,
+                height: `${leftOffset.heigth}`,
+                objectFit: 'contain',
                 position: 'absolute',
-                top: leftOffset.isBigger ? '132px' : 'auto',
+                backgroundRepeat: 'no-repeat',
               }}
             />
             <Box
               sx={{
                 position: 'absolute',
                 top: '91px',
-                left: leftOffset.isBigger ? 30 : leftOffset.range - 30,
-                right: leftOffset.isBigger ? 30 : leftOffset.range - 30,
+                left:
+                  window.innerWidth > (imgRef.current?.naturalWidth || 0)
+                    ? Math.abs(window.innerWidth - (imgRef.current?.naturalWidth || 0)) / 2
+                    : 0,
+                right:
+                  window.innerWidth > (imgRef.current?.naturalWidth || 0)
+                    ? Math.abs(window.innerWidth - (imgRef.current?.naturalWidth || 0)) / 2
+                    : 0,
                 display: 'flex',
                 justifyContent: 'space-between',
                 padding: '0 16px',
               }}
             >
-              <IconButton onClick={handleCloseModal}>
+              <IconButton onClick={handleCloseModal} style={{ background: '#494950', height: '40px', width: '40px' }}>
                 <img src={IconClose} alt="icon-close" />
               </IconButton>
-              <IconButton onClick={handleDownloadImage}>
+              <IconButton
+                onClick={() => handleDownloadImage()}
+                style={{ background: '#494950', height: '40px', width: '40px' }}
+              >
                 <img src={IconDownload} alt="icon-download" />
               </IconButton>
             </Box>
