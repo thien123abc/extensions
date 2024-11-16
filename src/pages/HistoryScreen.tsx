@@ -16,6 +16,7 @@ import ConfirmationDialog from '../components/ConfirmationDialog';
 import { formattedTime } from '../utils/formatTime';
 import ErrorIcon from '../assets/icons/icon-close-red.svg';
 import { getMessagesApiAsync } from '../api/eventSource';
+import KaTeXComponent from '../components/Test';
 
 type ActionState = { type: 'EDIT'; id: string; text: string } | { type: 'DELETE'; id: string; text: string } | null;
 
@@ -203,6 +204,7 @@ function HistoryScreen() {
 
   return (
     <div id="history-screen" className="container">
+      <KaTeXComponent />
       <div id="head-panel" className="head-panel">
         <p className="title-sidepanel">Lịch sử</p>
         <img id="logoIcon" src={require('../assets/images/vSOC-logo.png')} alt="vSOC-logo" />
@@ -305,9 +307,7 @@ function HistoryScreen() {
                           </>
                         ) : (
                           <p className="titles-item-his-view" style={{ fontWeight: 'bold' }}>
-                            {item.title.length <= MAX_CHAR_DISPLAY_LENGTH
-                              ? item.title
-                              : item.title.slice(0, MAX_CHAR_DISPLAY_LENGTH) + '...'}
+                            {item.title}
                           </p>
                         )}
                         <p>{conversationTimes.find((item2) => item2.id === item.id)?.realTime}</p>
