@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable no-useless-escape */
 import { useHistory, useLocation } from 'react-router-dom';
-import { ImgHTMLAttributes, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { marked } from 'marked';
 import api from '../api/VsocApi';
 import {
@@ -42,13 +42,12 @@ import logoImage from '../assets/images/vSOC-logo.png';
 import childImage from '../assets/images/child.png';
 import IconClose from '../assets/icons/icon-close.svg';
 import IconDownload from '../assets/icons/icon-download.svg';
-import Test from '../components/Test';
 import { useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../store/store';
 import { useDispatch } from 'react-redux';
-import { BotRunStatusEnum, setBotRunStatus } from '../store/chatSlice';
 import IconDownGray from '../assets/icons/icon-down-gray.svg';
-const Latex = require('react-latex');
+import { BlockMath, InlineMath } from 'react-katex';
+import 'katex/dist/katex.min.css';
 
 interface IVsocStoredMessageStore extends IVsocStoredMessage {
   isStored?: boolean;
@@ -694,15 +693,15 @@ function MainScreen() {
   const [katex, setKatex] = useState<string[]>([]);
   const katexRef = useRef<Element[]>([]);
 
-  useEffect(() => {
-    // Lấy tất cả các phần tử có lớp 'katex-html' và loại bỏ chúng
-    const katexHtmlElements = document.querySelectorAll('.katex-html');
-    katexHtmlElements.forEach((el) => el.remove());
-    const katexMathmlElements = document.querySelectorAll('.katex');
-    katexMathmlElements.forEach((el) => katexRef.current.push(el));
-    const htmlStrings = katexRef.current.map((el) => el.outerHTML);
-    setKatex(htmlStrings);
-  }, [actionMess, msgRef.current, forceRenderValue]);
+  // useEffect(() => {
+  //   // Lấy tất cả các phần tử có lớp 'katex-html' và loại bỏ chúng
+  //   const katexHtmlElements = document.querySelectorAll('.katex-html');
+  //   katexHtmlElements.forEach((el) => el.remove());
+  //   const katexMathmlElements = document.querySelectorAll('.katex');
+  //   katexMathmlElements.forEach((el) => katexRef.current.push(el));
+  //   const htmlStrings = katexRef.current.map((el) => el.outerHTML);
+  //   setKatex(htmlStrings);
+  // }, [actionMess, msgRef.current, forceRenderValue]);
   // console.log('arrr', katex);
   console.log('actionmess', actionMess);
 
@@ -823,7 +822,6 @@ function MainScreen() {
               <button
                 onClick={() => {
                   history.push('/history');
-
                   // handleStopGenarate();
                 }}
               >
@@ -895,15 +893,18 @@ function MainScreen() {
                   item.message_html,
                 );
               const hasMath = /\\\([^\)]*\\\)|\\\[([^\]]*)\\\]/.test(item.message);
+              const htmlMathBlockReplace = hasMath
+                ? item.message_html
+                    .replace(/\(/g, '\\\\')
+                    .replace(/\)/g, '\\\\')
+                    .replace(/\[/g, '\\\\')
+                    .replace(/\]/g, '\\\\')
+                : item.message_html;
 
-              const htmlMathBlockReplace = item.message_html
-                .replace(/\(/g, '\\(')
-                .replace(/\)/g, '\\)')
-                .replace(/\[/g, '\\[')
-                .replace(/\]/g, '\\]');
-              const parsedText = parseText(item.message);
+              // const parsedText = parseText(item.message);
 
-              // console.log('math', parsedText);
+              console.log('hasMath', hasMath);
+              console.log('math', htmlMathBlockReplace);
 
               const renderer = new marked.Renderer();
               if (hasLink) {
@@ -1010,19 +1011,8 @@ function MainScreen() {
                         }}
                       ></p>
                     ) : null}
-                    {hasMath &&
-                      parsedText.map((part, index) => {
-                        if (part.type === 'html') {
-                          return (
-                            <span
-                              key={index}
-                              dangerouslySetInnerHTML={{ __html: marked(part.content, { renderer }) as any }}
-                            />
-                          );
-                        } else if (part.type === 'latex') {
-                          return <Latex>{part.content}</Latex>;
-                        }
-                      })}
+                    {hasMath && <InlineMath math={htmlMathBlockReplace} />}
+                    {/* <BlockMath math="A =l \times w" /> */}
 
                     {!hasLink && !hasImage && !hasCode && !hasMath && !hasMarkdown ? (
                       item.role === 'User' ? (
