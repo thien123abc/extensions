@@ -893,15 +893,35 @@ function MainScreen() {
                   item.message_html,
                 );
               const hasMath = /\\\([^\)]*\\\)|\\\[([^\]]*)\\\]/.test(item.message);
-              const htmlMathBlockReplace = hasMath
-                ? item.message_html
-                    .replace(/\(/g, '\\\\')
-                    .replace(/\)/g, '\\\\')
-                    .replace(/\[/g, '\\\\')
-                    .replace(/\]/g, '\\\\')
-                : item.message_html;
+              // const htmlMathBlockReplace = hasMath
+              //   ? item.message_html
+              //       .replace(/\(/g, '\\\\')
+              //       .replace(/\)/g, '\\\\')
+              //       .replace(/\[/g, '\\\\')
+              //       .replace(/\]/g, '\\\\')
+              //   : item.message_html;
 
-              // const parsedText = parseText(item.message);
+              const parsed = parseText(item.message);
+              let listLatex = [];
+              if (hasMath) {
+                listLatex = parsed
+                  .map((item) => {
+                    if (item.type === 'html') {
+                      return { ...item, content: marked.parse(item.content) };
+                    } else if (item.type === 'latex') {
+                      return {
+                        ...item,
+                        content: item.content
+                          .replace(/\\\(/g, '\\\\')
+                          .replace(/\\\)/g, '\\\\')
+                          .replace(/\\\[/g, '\\\\')
+                          .replace(/\\\]/g, '\\\\'),
+                      };
+                    }
+                    return null;
+                  })
+                  .map((item2: any) => ({ ...item2, content: (item2.content as string).replace(/\n/g, '') }));
+              }
 
               console.log('hasMath', hasMath);
               console.log('math', htmlMathBlockReplace);
@@ -1011,8 +1031,23 @@ function MainScreen() {
                         }}
                       ></p>
                     ) : null}
-                    {hasMath && <InlineMath math={htmlMathBlockReplace} />}
-                    {/* <BlockMath math="A =l \times w" /> */}
+
+
+                    {hasMath &&
+                      listLatex.map((latex) => {
+                        if (latex.type == 'html')
+                          return (
+                            <p
+                              className="item-text-chat"
+                              dangerouslySetInnerHTML={{
+                                __html:
+                                  DOMPurify.sanitize(latex.content) +
+                                  '<span class="streaming" style="width: 11px; display: inline-block; height: 3px; background: #89a357;box-shadow: 0px 0px 4px 0px #5fff51;animation: blink 0.5s infinite;"></span>',
+                              }}
+                            ></p>
+                          );
+                        else return <InlineMath math={latex.content} />;
+                      })}
 
                     {!hasLink && !hasImage && !hasCode && !hasMath && !hasMarkdown ? (
                       item.role === 'User' ? (
