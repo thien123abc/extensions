@@ -405,6 +405,11 @@
           position: relative;
           padding: 10px 12px 14px 12px;
 
+          span[data-testid="react-katex"]{
+            // padding: 0 25px;
+    display: inline-block;
+          }
+
           .img-download {
             position: relative;
             width: 160px;
