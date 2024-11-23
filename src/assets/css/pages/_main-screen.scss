@@ -30,9 +30,10 @@
     padding: 0 12px;
     height: 56px;
     background-color: #18181b;
+    position: relative;
 
     .back-title {
-      width: 90%;
+      width: calc(100% - 84px);
     }
 
     p {
@@ -51,6 +52,10 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      flex-shrink: 0;
+      position: absolute;
+      right: 0;
+      width: 84px;
     }
 
     .title-sidepanel {
@@ -170,6 +175,7 @@
       overflow-y: scroll;
       overflow-x: hidden;
       height: 85%;
+      padding-bottom: 24px;
 
       &::-webkit-scrollbar {
         width: 5px;
@@ -237,6 +243,90 @@
           display: inline;
           overflow-wrap: break-word;
 
+          ul > li > input[type='checkbox'] + span.streaming {
+            margin-top: 13px;
+          }
+
+          ul:has(li input[type='checkbox']) {
+            margin: 0;
+            padding: 0;
+          }
+
+          ul li:has(input[type='checkbox']) {
+            list-style: none; /* Xóa dấu chấm cho các li chứa checkbox */
+            display: flex;
+            font-size: 14px;
+            gap: 4px;
+          }
+
+          /* Ẩn giao diện mặc định của checkbox */
+          input[type='checkbox'] {
+            appearance: none; /* Xóa giao diện mặc định */
+            -webkit-appearance: none; /* Xóa giao diện trên Safari */
+            width: 14px;
+            height: 14px;
+            background: transparent;
+            border-radius: 2px;
+            position: relative;
+            pointer-events: none;
+            flex-shrink: 0;
+            margin-top: 4px;
+          }
+
+          /* Trường hợp 1 và 2: Không có checked, unchecked hoặc chỉ có unchecked */
+          input[type='checkbox']:not(:checked):not(:disabled) {
+            border: 2px solid #94949e;
+            background: transparent;
+          }
+
+          /* Trường hợp 3: Chỉ có checked */
+          input[type='checkbox']:checked:not(:disabled) {
+            border: 2px solid #e5e5e7;
+            background: #e5e5e7;
+          }
+          /* Dấu tích cho checkbox khi checked (trường hợp 3) */
+          input[type='checkbox']:checked:not(:disabled)::after {
+            content: '';
+            width: 8px;
+            height: 5px;
+            border: solid #000000;
+            border-width: 2px 2px 0 0;
+            position: absolute;
+            transform: rotate(135deg) scale(1);
+            // left: 1px;
+            // top: 1px;
+          }
+
+          /* Trường hợp 4: Checked và disabled */
+          input[type='checkbox']:checked:disabled {
+            border: 2px solid #3d3d43;
+            background: #3d3d43;
+          }
+
+          /* Dấu tích cho checkbox khi checked và disabled (trường hợp 4) */
+          input[type='checkbox']:checked:disabled::after {
+            content: '';
+            width: 8px;
+            height: 5px;
+            border: solid #62626a;
+            border-width: 2px 2px 0 0;
+            position: absolute;
+            transform: rotate(135deg) scale(1);
+            // left: 1px;
+            // top: 1px;
+          }
+
+          /* Trường hợp 5: Unchecked và disabled */
+          input[type='checkbox']:not(:checked):disabled {
+            border: 2px solid #3d3d43;
+            background: #3d3d43;
+          }
+
+          .code-block {
+            position: relative;
+            display: block;
+          }
+
           & > blockquote {
             border-left: 2px solid #94949e;
             padding: 8px 16px;
@@ -265,78 +355,12 @@
           h6 {
             font-size: 14px;
           }
-          p,
-          div,
-          article,
-          section {
-            display: inline;
-          }
-          code {
-            display: inline-block;
-            background-color: #3d3d43;
-            width: fit-content;
-            text-shadow: none;
-          }
-          pre {
-            background-color: #3d3d43; /* Nền màu xám nhạt cho code block */
-            padding: 20px;
-            border-radius: 8px; /* Bo góc nhẹ */
-            overflow-x: auto; /* Thêm thanh cuộn ngang nếu code quá dài */
-            white-space: pre-wrap; /* Ngắt dòng tự động */
-            word-wrap: break-word; /* Ngắt từ nếu cần */
-            font-family: monospace;
-            font-size: 14px; /* Kích thước chữ */
-            max-width: 100%; /* Đảm bảo chiếm hết chiều rộng khung chat */
-
-            code[class*='language-'] {
-              min-width: 350px;
-              overflow-x: auto;
-            }
-
-            code[class*='language-'] > span {
-              white-space: nowrap !important;
-            }
-
-            & > code {
-              color: #f5f5f5; /* Màu chữ sáng (trắng) */
-            }
-
-            .keyword {
-              color: #a626a4;
-            }
-            .operator {
-              color: #999;
-              background: #3d3d43;
-            }
-            .tag {
-              color: #fd2f4a;
-            }
-
-            .string {
-              color: #50a14f;
-            }
-            .attr {
-              color: #986801;
-            }
-
-            .comment {
-              color: #a0a1a7;
-              font-style: italic;
-            }
-
-            .function {
-              color: #4078f2;
-            }
-            .params {
-              color: #ececec;
-            }
-            .name {
-              color: #e45649;
-            }
-            .hljs-title {
-              color: #4078f2;
-            }
-          }
+          // p,
+          // div,
+          // article,
+          // section {
+          //   display: inline;
+          // }
 
           /* Dành riêng cho syntax highlighting */
 
@@ -403,11 +427,13 @@
           max-width: 90%;
           line-height: 24px;
           position: relative;
-          padding: 10px 12px 14px 12px;
+          padding-top: 10px;
+          padding-right: 12px;
+          padding-bottom: 14px;
+          padding-left: 12px;
 
-          span[data-testid="react-katex"]{
-            // padding: 0 25px;
-    display: inline-block;
+          span[data-testid='react-katex'] {
+            display: inline-block;
           }
 
           .img-download {
@@ -586,7 +612,7 @@ textarea {
 }
 .container__textarea {
   background: transparent;
-  caret-color: transparent;
+  // caret-color: transparent;
   position: relative;
 }
 .container__mirror {
@@ -599,23 +625,88 @@ textarea {
   color: transparent;
 }
 .container__cursor {
-  animation: blink 1s infinite;
+  animation: blink 1s steps(1) infinite;
   background-color: #89a357;
   position: absolute;
-  width: 3px;
-  height: 11px;
+  width: 2px;
+  height: 10px;
   z-index: 1000;
   box-shadow: 0px 0px 4px 0px #5fff51;
   transform-origin: bottom;
-  transform: rotate(90deg) translateY(2px);
+  transform: rotate(90deg) translateY(2px) translateX(5px);
 }
 
 @keyframes blink {
-  0%,
-  100% {
-    background-color: #5fff51;
-  }
   50% {
-    background-color: #89a357;
+    opacity: 0;
+  }
+}
+
+.item-chat {
+  code {
+    display: inline-block;
+    background-color: #3d3d43 !important;
+    width: fit-content;
+    text-shadow: none !important;
+  }
+  pre {
+    background-color: #3d3d43 !important;
+    padding: 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: monospace;
+    font-size: 14px;
+    max-width: 100%;
+
+    code[class*='language-'] {
+      min-width: 350px;
+      overflow-x: auto;
+    }
+
+    code[class*='language-'] > span {
+      white-space: nowrap !important;
+    }
+
+    & > code {
+      color: #f5f5f5; /* Màu chữ sáng (trắng) */
+    }
+
+    .keyword {
+      color: #a626a4;
+    }
+    .operator {
+      color: #999;
+      background: #3d3d43;
+    }
+    .tag {
+      color: #fd2f4a;
+    }
+
+    .string {
+      color: #50a14f;
+    }
+    .attr {
+      color: #986801;
+    }
+
+    .comment {
+      color: #a0a1a7;
+      font-style: italic;
+    }
+
+    .function {
+      color: #4078f2;
+    }
+    .params {
+      color: #ececec;
+    }
+    .name {
+      color: #e45649;
+    }
+    .hljs-title {
+      color: #4078f2;
+    }
   }
 }
