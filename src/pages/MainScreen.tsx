@@ -571,6 +571,16 @@ function MainScreen() {
   };
 
   const calculateLeftOffset = () => {
+  const table = document.querySelector('.item-chat table') as HTMLTableElement;
+    if (table) {
+      if (viewportWidth <= 300) {
+        table.style.display = 'block';
+      } else {
+        table?.style?.removeProperty('display');
+      }
+    }
+
+    
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     if (imgRef.current) {
