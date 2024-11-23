@@ -723,7 +723,109 @@ function MainScreen() {
     });
   }, [msgRef.current, forceRenderValue, actionMess]);
 
-  useEffect(() => {
+  // useEffect(() => {
+  //   const containerEle = document.getElementById('container');
+  //   const textarea = document.getElementById('textarea') as HTMLTextAreaElement;
+  //   if (containerEle && textarea) {
+  //     const mirroredEle = document.createElement('div');
+  //     mirroredEle.textContent = textarea.value;
+  //     mirroredEle.classList.add('container__mirror');
+  //     containerEle.prepend(mirroredEle);
+
+  //     const textareaStyles = window.getComputedStyle(textarea);
+  //     [
+  //       'border',
+  //       'boxSizing',
+  //       'fontFamily',
+  //       'fontSize',
+  //       'fontWeight',
+  //       'letterSpacing',
+  //       'lineHeight',
+  //       'padding',
+  //       'textDecoration',
+  //       'textIndent',
+  //       'textTransform',
+  //       'whiteSpace',
+  //       'wordSpacing',
+  //       'wordWrap',
+  //     ].forEach((property: any) => {
+  //       mirroredEle.style[property] = textareaStyles[property];
+  //     });
+  //     mirroredEle.style.borderColor = 'transparent';
+
+  //     const parseValue = (v: any) => (v.endsWith('px') ? parseInt(v.slice(0, -2), 10) : 0);
+  //     const borderWidth = parseValue(textareaStyles.borderWidth);
+
+  //     const ro = new ResizeObserver(() => {
+  //       mirroredEle.style.width = `${textarea.clientWidth + 2 * borderWidth}px`;
+  //       mirroredEle.style.height = `${textarea.clientHeight + 2 * borderWidth}px`;
+  //     });
+  //     ro.observe(textarea);
+
+  //     const handleSelectionChange = () => {
+  //       if (document.activeElement !== textarea) {
+  //         return;
+  //       }
+  //       const cursorPos = textarea.selectionStart;
+  //       const textBeforeCursor = textarea.value.substring(0, cursorPos);
+  //       const textAfterCursor = textarea.value.substring(cursorPos);
+
+  //       const pre = document.createTextNode(textBeforeCursor);
+  //       const post = document.createTextNode(textAfterCursor);
+  //       const caretEle = document.createElement('span');
+  //       caretEle.classList.add('container__cursor');
+  //       caretEle.innerHTML = '&nbsp;';
+
+  //       mirroredEle.innerHTML = '';
+  //       mirroredEle.append(pre, caretEle, post);
+
+  //       // Đồng bộ trạng thái cuộn
+  //       mirroredEle.scrollTop = textarea.scrollTop;
+  //     };
+  //     textarea.addEventListener('scroll', () => {
+  //       mirroredEle.scrollTop = textarea.scrollTop;
+  //       handleSelectionChange();
+  //     });
+  //     document.addEventListener('selectionchange', handleSelectionChange);
+  //     document.addEventListener('input', handleSelectionChange);
+  //     document.addEventListener(
+  //       'focus',
+  //       (event) => {
+  //         if (event.target === textarea) {
+  //           mirroredEle.style.visibility = 'visible';
+  //           setTimeout(() => {
+  //             handleSelectionChange();
+  //           }, 0);
+  //         }
+  //       },
+  //       true,
+  //     ); // Sử dụng pha capturing
+
+  //     document.addEventListener(
+  //       'blur',
+  //       (event) => {
+  //         if (event.target === textarea) {
+  //           mirroredEle.scrollTop = textarea.scrollTop;
+  //           // Kích hoạt sự kiện scroll bằng tay để đảm bảo đồng bộ
+  //           const scrollEvent = new Event('scroll');
+  //           textarea.dispatchEvent(scrollEvent);
+  //           mirroredEle.style.visibility = 'hidden';
+  //         }
+  //       },
+  //       true,
+  //     );
+
+  //     return () => {
+  //       document.removeEventListener('selectionchange', handleSelectionChange);
+  //       document.removeEventListener('input', handleSelectionChange);
+  //       document.removeEventListener('focus', handleSelectionChange);
+  //       document.removeEventListener('blur', handleSelectionChange);
+  //     };
+  //   }
+  // }, []);
+
+
+   useEffect(() => {
     const containerEle = document.getElementById('container');
     const textarea = document.getElementById('textarea') as HTMLTextAreaElement;
     if (containerEle && textarea) {
@@ -731,6 +833,11 @@ function MainScreen() {
       mirroredEle.textContent = textarea.value;
       mirroredEle.classList.add('container__mirror');
       containerEle.prepend(mirroredEle);
+
+      // Gắn sự kiện mousedown để ngăn mất focus khi click vào mirroredEle
+      mirroredEle.addEventListener('mousedown', (event) => {
+        event.preventDefault(); // Ngăn sự kiện focus bị mất khi click vào custom caret
+      });
 
       const textareaStyles = window.getComputedStyle(textarea);
       [
@@ -766,24 +873,53 @@ function MainScreen() {
         if (document.activeElement !== textarea) {
           return;
         }
+
+        // Lấy vị trí con trỏ
         const cursorPos = textarea.selectionStart;
         const textBeforeCursor = textarea.value.substring(0, cursorPos);
         const textAfterCursor = textarea.value.substring(cursorPos);
 
-        const pre = document.createTextNode(textBeforeCursor);
-        const post = document.createTextNode(textAfterCursor);
-        const caretEle = document.createElement('span');
-        caretEle.classList.add('container__cursor');
-        caretEle.innerHTML = '&nbsp;';
+        // Chia văn bản thành các dòng
+        const linesBeforeCursor = textBeforeCursor.split('\n');
+        const linesAfterCursor = textAfterCursor.split('\n');
 
+        const caretLineIndex = linesBeforeCursor.length - 1; // Dòng hiện tại của caret
+        const caretOffset = linesBeforeCursor[caretLineIndex].length; // Vị trí trong dòng
+
+        // Reset nội dung của mirroredEle
         mirroredEle.innerHTML = '';
-        mirroredEle.append(pre, caretEle, post);
 
-        // Đồng bộ trạng thái cuộn
+        // Xử lý từng dòng trong textarea
+        const allLines = textarea.value.split('\n');
+        allLines.forEach((line, index) => {
+          const lineEle = document.createElement('div');
+          lineEle.classList.add('container__line');
+          lineEle.textContent = line || '\u200B'; // Sử dụng ký tự zero-width space cho dòng trống
+          mirroredEle.appendChild(lineEle);
+
+          if (index === caretLineIndex) {
+            // Thêm caret vào dòng hiện tại
+            const caretEle = document.createElement('span');
+            caretEle.classList.add('container__cursor');
+            caretEle.innerHTML = '&nbsp;';
+
+            // Chia dòng tại vị trí caret
+            const preText = document.createTextNode(line.substring(0, caretOffset));
+            const postText = document.createTextNode(line.substring(caretOffset));
+
+            lineEle.innerHTML = ''; // Xóa nội dung cũ để thêm caret
+            lineEle.appendChild(preText);
+            lineEle.appendChild(caretEle);
+            lineEle.appendChild(postText);
+          }
+        });
+
+        // Đồng bộ cuộn
         mirroredEle.scrollTop = textarea.scrollTop;
       };
+
+      // Đồng bộ cuộn khi scroll xảy ra
       textarea.addEventListener('scroll', () => {
-        mirroredEle.scrollTop = textarea.scrollTop;
         handleSelectionChange();
       });
       document.addEventListener('selectionchange', handleSelectionChange);
@@ -793,18 +929,22 @@ function MainScreen() {
         (event) => {
           if (event.target === textarea) {
             mirroredEle.style.visibility = 'visible';
+
             setTimeout(() => {
               handleSelectionChange();
             }, 0);
           }
         },
         true,
-      ); // Sử dụng pha capturing
+      );
 
       document.addEventListener(
         'blur',
         (event) => {
-          if (event.target === textarea) {
+          if (
+            event.target === textarea &&
+            (!event.relatedTarget || !mirroredEle.contains(event.relatedTarget as Node))
+          ) {
             mirroredEle.scrollTop = textarea.scrollTop;
             // Kích hoạt sự kiện scroll bằng tay để đảm bảo đồng bộ
             const scrollEvent = new Event('scroll');
@@ -823,6 +963,7 @@ function MainScreen() {
       };
     }
   }, []);
+
 
   useEffect(() => {
     if (actionMess !== 'WAIT') {
