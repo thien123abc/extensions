@@ -570,6 +570,7 @@ function MainScreen() {
     }));
   };
 
+  //lưu ý xóa display:block ở file main_screen.scss của table
    useEffect(() => {
     const viewportWidth = window.innerWidth;
     const tables = document.querySelectorAll<HTMLTableElement>('.item-chat table');
