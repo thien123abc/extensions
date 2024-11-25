@@ -570,19 +570,37 @@ function MainScreen() {
     }));
   };
 
-  const calculateLeftOffset = () => {
-  const table = document.querySelector('.item-chat table') as HTMLTableElement;
-    if (table) {
-      if (viewportWidth <= 300) {
-        table.style.display = 'block';
-      } else {
-        table?.style?.removeProperty('display');
-      }
-    }
-
-    
+   useEffect(() => {
     const viewportWidth = window.innerWidth;
+    const tables = document.querySelectorAll<HTMLTableElement>('.item-chat table');
+
+    tables.forEach((table) => {
+      if (table) {
+        if (viewportWidth <= 450) {
+          table.style.display = 'block';
+        } else {
+          table.style.removeProperty('display');
+        }
+      }
+    });
+  }, [msgRef.current, actionMess, forceRenderValue]);
+
+  
+  const calculateLeftOffset = () => {
+ const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+    const tables = document.querySelectorAll<HTMLTableElement>('.item-chat table');
+
+    tables.forEach((table) => {
+      if (table) {
+        if (viewportWidth <= 450) {
+          table.style.display = 'block';
+        } else {
+          table.style.removeProperty('display');
+        }
+      }
+    });
+
     if (imgRef.current) {
       const imgWidth = imgRef.current.naturalWidth;
       const imgHeight = imgRef.current.naturalHeight;
