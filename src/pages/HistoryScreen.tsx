@@ -16,12 +16,11 @@ import ConfirmationDialog from '../components/ConfirmationDialog';
 import { formattedTime } from '../utils/formatTime';
 import ErrorIcon from '../assets/icons/icon-close-red.svg';
 import { getMessagesApiAsync } from '../api/eventSource';
-import KaTeXComponent from '../components/Test';
+import IconError from '../assets/icons/icon-alert-error.svg';
 
 type ActionState = { type: 'EDIT'; id: string; text: string } | { type: 'DELETE'; id: string; text: string } | null;
 
 export const MAX_CHAR_INPUT_LENGTH = 200;
-const MAX_CHAR_DISPLAY_LENGTH = 48;
 
 function HistoryScreen() {
   const history = useHistory();
@@ -69,8 +68,6 @@ function HistoryScreen() {
   useEffect(() => {
     if (!loading) {
       if (lastMessageTimes.length > 0 && conversations.length === lastMessageTimes.length) {
-        console.log('last', lastMessageTimes);
-
         const cloneConvs = conversations.map((item) => {
           const matchConv = lastMessageTimes.find((time) => item.id === time.conv_id);
           return matchConv ? { ...item, time: matchConv.lastMsgTime } : item;
@@ -98,8 +95,6 @@ function HistoryScreen() {
       }, 1);
     }
     return () => {
-      console.log('interval', intervalId);
-
       clearInterval(intervalId);
     };
   }, [isDataReadyRef.current]);
@@ -123,7 +118,7 @@ function HistoryScreen() {
       setLoading(false);
       return data.result;
     } catch (error) {
-      console.log('error', error);
+      //
     } finally {
       setLoading(false);
     }
@@ -157,7 +152,6 @@ function HistoryScreen() {
         conversation_id,
         title: titles.find((item) => item.id === conversation_id)?.text.trim() as string,
       });
-      console.log('data save', data);
 
       setIsSaving(false);
       setActionState(null);
@@ -204,7 +198,6 @@ function HistoryScreen() {
 
   return (
     <div id="history-screen" className="container">
-      <KaTeXComponent />
       <div id="head-panel" className="head-panel">
         <p className="title-sidepanel">Lịch sử</p>
         <img id="logoIcon" src={require('../assets/images/vSOC-logo.png')} alt="vSOC-logo" />
@@ -235,16 +228,30 @@ function HistoryScreen() {
               <div className="chat-panel-container" ref={wrapperRef}>
                 {conversations.map((item: IVsocStoredConversation) => {
                   return (
-                    <div className="his-chat" key={item.id}>
+                    <div
+                      className="his-chat"
+                      key={item.id}
+                      style={{
+                        cursor: 'pointer',
+                        height:
+                          actionState && actionState.id === item.id && actionState.type === 'EDIT' ? '100px' : '88px',
+                        backgroundColor:
+                          actionState && actionState.id === item.id && actionState.type === 'EDIT' ? '#242428' : '',
+                      }}
+                      onClick={(e) => {
+                        if (!isInputFocused) {
+                          history.push('/', item);
+                        }
+                      }}
+                    >
                       <button
                         className="item-his-view"
                         key={item.id}
-                        onClick={(e) => {
-                          if (!isInputFocused) {
-                            console.log('click zooooo');
-                            history.push('/', item); // Nếu input không focus, cho phép click vào button
-                          }
-                        }}
+                        // onClick={(e) => {
+                        //   if (!isInputFocused) {
+                        //     history.push('/', item);
+                        //   }
+                        // }}
                       >
                         {actionState && actionState.id === item.id && actionState.type === 'EDIT' ? (
                           <>
@@ -282,7 +289,7 @@ function HistoryScreen() {
                                 });
                               }}
                               sx={{
-                                border: '1px solid #5582DF',
+                                border: `1px solid ${titles.find((item2) => item2.id === item.id)?.text.length === 0 ? '#EE0033' : '#5582DF'}`,
                                 borderRadius: '4px',
                                 height: '28px',
                                 width: '100%',
@@ -300,17 +307,30 @@ function HistoryScreen() {
                               disableUnderline
                             />
                             {titles.find((item2) => item2.id === item.id)?.text.length === 0 && (
-                              <FormHelperText style={{ color: 'red', fontSize: '12px' }}>
-                                Tên hội thoại không được để trống
-                              </FormHelperText>
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  height: '16px',
+                                  marginTop: '8px',
+                                  gap: '4px',
+                                }}
+                              >
+                                {/* <img alt="icon-error" src={IconError} /> */}
+                                <FormHelperText style={{ color: '#EE0033', fontSize: '12px', marginTop: '2px' }}>
+                                  Tên hội thoại không được để trống
+                                </FormHelperText>
+                              </div>
                             )}
                           </>
                         ) : (
-                          <p className="titles-item-his-view" style={{ fontWeight: 'bold' }}>
-                            {item.title}
-                          </p>
+                          <>
+                            <p className="titles-item-his-view" style={{ fontWeight: 'bold' }}>
+                              {item.title}
+                            </p>
+                            <p>{conversationTimes.find((item2) => item2.id === item.id)?.realTime}</p>
+                          </>
                         )}
-                        <p>{conversationTimes.find((item2) => item2.id === item.id)?.realTime}</p>
                       </button>
                       <div
                         className="item-his-view-actions"
@@ -350,7 +370,7 @@ function HistoryScreen() {
                         }}
                       >
                         <div className="character-display">
-                          <Typography variant="body2" color="HighlightText">
+                          <Typography variant="body2" color="#C9C9CF">
                             {titles.find((item2) => item2.id === item.id)?.text.length}/{MAX_CHAR_INPUT_LENGTH}
                           </Typography>
                         </div>
@@ -373,6 +393,10 @@ function HistoryScreen() {
                                 titles.find((item2) => item2.id === item.id)?.text.length === 0
                                   ? 0.7
                                   : 1,
+                              '&:hover': {
+                                backgroundColor: '#FD2F4A',
+                                opacity: 0.8,
+                              },
                             }}
                             disabled={
                               titles.find((item) => item.id === actionState?.id)?.text.trim() ===
@@ -445,8 +469,8 @@ function HistoryScreen() {
           message="Bạn có chắc chắn muốn xoá hội thoại này?"
           onClose={() => setActionState(null)}
           onClick={handleClickDelete}
-          widthBox="352px"
-          heightBox="148px"
+          widthBox="400px"
+          heightBox="180px"
         />
       )}
     </div>
