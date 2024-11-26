@@ -48,8 +48,16 @@ import { useDispatch } from 'react-redux';
 import IconDownGray from '../assets/icons/icon-down-gray.svg';
 import { BlockMath, InlineMath } from 'react-katex';
 import 'katex/dist/katex.min.css';
-import { IconStreaming, regexCode, regexImage, regexLink, regexMarkdown, regexMath } from '../utils/constantRegex';
-import content from 'react-mathjax';
+import {
+  IconStreaming,
+  regexCode,
+  regexFootnotes,
+  regexImage,
+  regexLink,
+  regexMarkdown,
+  regexMath,
+} from '../utils/constantRegex';
+import remarkKeepFootnotes from '../utils/remarkKeepFootnotes';
 
 interface IVsocStoredMessageStore extends IVsocStoredMessage {
   isStored?: boolean;
@@ -81,7 +89,11 @@ function MainScreen() {
   const [timeoutIds, setTimeoutIds] = useState<{ [key: string]: NodeJS.Timeout }>({});
   const [errorMessage, setErrorMessage] = useState('');
   const [stopGenerate, setStopGenerate] = useState(false);
-  const [messageStatus, setMessageStatus] = useState<{ msg_id: string; msg_type: 'user' | 'bot'; task_id: string }>();
+  const [messageStatus, setMessageStatus] = useState<{ msg_id: string; msg_type: 'user' | 'bot'; task_id: string }>({
+    msg_id: '',
+    msg_type: 'user',
+    task_id: '',
+  });
   const [leftOffset, setLeftOffset] = useState({ width: '0px', heigth: '0px' });
 
   const isStopAnswerRef = useRef(false);
@@ -187,6 +199,8 @@ function MainScreen() {
       conversation_id: id,
       limit: 30,
     });
+    console.log('listMSG', listMessages);
+
     const dataMessagesApi = (await getMessagesApiAsync({ conversation_id: id, limit: 30 }))
       .result as IVsocGetMessageApiArgs[];
 
@@ -215,6 +229,7 @@ function MainScreen() {
       if (dataMessagesApi.length) {
         parentMsgIdRef.current = dataMessagesApi[0]?.message_id;
       }
+      console.log('done2', transformedMessages);
 
       setMessages(transformedMessages);
       scrollToBottom();
@@ -239,6 +254,8 @@ function MainScreen() {
   };
 
   const getListData = async (id: string) => {
+    console.log('có vào đây ko');
+
     if (!isStopAnswerRef.current) {
       try {
         const data = await api.message.getNextAsync({
@@ -246,6 +263,8 @@ function MainScreen() {
         });
 
         if (data.result) {
+          console.log('result', data.result);
+
           parentMsgIdRef.current = data.result.message_id as string;
           if (!data.result.message && data.result.action == 'WAIT') {
             setTimeout(() => getListData(id), 1000);
@@ -278,6 +297,7 @@ function MainScreen() {
             };
             messages.push(message);
           }
+          console.log('done', messages);
 
           setMessages([...messages]);
           setForceRenderValue((prev) => prev + 1);
@@ -381,6 +401,8 @@ function MainScreen() {
           parentMsgId: parentMsgIdRef.current,
         });
       }
+      console.log('đã chạy đến');
+
       await getListData(conversation_id);
     } catch (error) {
       setActionMess('');
@@ -570,37 +592,43 @@ function MainScreen() {
     }));
   };
 
-  //lưu ý xóa display:block ở file main_screen.scss của table
-   useEffect(() => {
-    const viewportWidth = window.innerWidth;
+  useEffect(() => {
     const tables = document.querySelectorAll<HTMLTableElement>('.item-chat table');
 
     tables.forEach((table) => {
       if (table) {
-        if (viewportWidth <= 450) {
-          table.style.display = 'block';
+        const parent = table.parentElement;
+
+        if (parent && parent.classList.contains('div-table')) {
+          console.log('Table đã có thẻ cha với class "div-table".');
         } else {
-          table.style.removeProperty('display');
+          const wrapper = document.createElement('div');
+          wrapper.classList.add('div-table');
+          if (table.parentNode) {
+            table.parentNode.insertBefore(wrapper, table);
+            wrapper.appendChild(table);
+            console.log('Đã thêm thẻ cha với class "div-table".');
+          }
         }
       }
     });
   }, [msgRef.current, actionMess, forceRenderValue]);
 
-  
   const calculateLeftOffset = () => {
- const viewportWidth = window.innerWidth;
+    const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const tables = document.querySelectorAll<HTMLTableElement>('.item-chat table');
 
-    tables.forEach((table) => {
-      if (table) {
-        if (viewportWidth <= 450) {
-          table.style.display = 'block';
-        } else {
-          table.style.removeProperty('display');
-        }
-      }
-    });
+    // const tables = document.querySelectorAll<HTMLTableElement>('.item-chat table');
+
+    // tables.forEach((table) => {
+    //   if (table) {
+    //     if (viewportWidth <= 450) {
+    //       table.style.display = 'block';
+    //     } else {
+    //       table.style.removeProperty('display');
+    //     }
+    //   }
+    // });
 
     if (imgRef.current) {
       const imgWidth = imgRef.current.naturalWidth;
@@ -638,6 +666,10 @@ function MainScreen() {
   useEffect(() => {
     const streamingElementsUser = document.querySelectorAll('.user-item-chat .streaming');
     const streamingElementsBot = document.querySelectorAll('.item-text-chat .streaming');
+    const streamingElementsAll = document.querySelectorAll('.item-chat .streaming');
+    if (streamingElementsAll.length && actionMess !== 'WAIT') {
+      streamingElementsAll.forEach((el) => el.remove());
+    }
     streamingElementsUser.forEach((el) => el.remove());
     streamingElementsBot.forEach((el, index) => {
       if (actionMess === 'WAIT') {
@@ -752,109 +784,7 @@ function MainScreen() {
     });
   }, [msgRef.current, forceRenderValue, actionMess]);
 
-  // useEffect(() => {
-  //   const containerEle = document.getElementById('container');
-  //   const textarea = document.getElementById('textarea') as HTMLTextAreaElement;
-  //   if (containerEle && textarea) {
-  //     const mirroredEle = document.createElement('div');
-  //     mirroredEle.textContent = textarea.value;
-  //     mirroredEle.classList.add('container__mirror');
-  //     containerEle.prepend(mirroredEle);
-
-  //     const textareaStyles = window.getComputedStyle(textarea);
-  //     [
-  //       'border',
-  //       'boxSizing',
-  //       'fontFamily',
-  //       'fontSize',
-  //       'fontWeight',
-  //       'letterSpacing',
-  //       'lineHeight',
-  //       'padding',
-  //       'textDecoration',
-  //       'textIndent',
-  //       'textTransform',
-  //       'whiteSpace',
-  //       'wordSpacing',
-  //       'wordWrap',
-  //     ].forEach((property: any) => {
-  //       mirroredEle.style[property] = textareaStyles[property];
-  //     });
-  //     mirroredEle.style.borderColor = 'transparent';
-
-  //     const parseValue = (v: any) => (v.endsWith('px') ? parseInt(v.slice(0, -2), 10) : 0);
-  //     const borderWidth = parseValue(textareaStyles.borderWidth);
-
-  //     const ro = new ResizeObserver(() => {
-  //       mirroredEle.style.width = `${textarea.clientWidth + 2 * borderWidth}px`;
-  //       mirroredEle.style.height = `${textarea.clientHeight + 2 * borderWidth}px`;
-  //     });
-  //     ro.observe(textarea);
-
-  //     const handleSelectionChange = () => {
-  //       if (document.activeElement !== textarea) {
-  //         return;
-  //       }
-  //       const cursorPos = textarea.selectionStart;
-  //       const textBeforeCursor = textarea.value.substring(0, cursorPos);
-  //       const textAfterCursor = textarea.value.substring(cursorPos);
-
-  //       const pre = document.createTextNode(textBeforeCursor);
-  //       const post = document.createTextNode(textAfterCursor);
-  //       const caretEle = document.createElement('span');
-  //       caretEle.classList.add('container__cursor');
-  //       caretEle.innerHTML = '&nbsp;';
-
-  //       mirroredEle.innerHTML = '';
-  //       mirroredEle.append(pre, caretEle, post);
-
-  //       // Đồng bộ trạng thái cuộn
-  //       mirroredEle.scrollTop = textarea.scrollTop;
-  //     };
-  //     textarea.addEventListener('scroll', () => {
-  //       mirroredEle.scrollTop = textarea.scrollTop;
-  //       handleSelectionChange();
-  //     });
-  //     document.addEventListener('selectionchange', handleSelectionChange);
-  //     document.addEventListener('input', handleSelectionChange);
-  //     document.addEventListener(
-  //       'focus',
-  //       (event) => {
-  //         if (event.target === textarea) {
-  //           mirroredEle.style.visibility = 'visible';
-  //           setTimeout(() => {
-  //             handleSelectionChange();
-  //           }, 0);
-  //         }
-  //       },
-  //       true,
-  //     ); // Sử dụng pha capturing
-
-  //     document.addEventListener(
-  //       'blur',
-  //       (event) => {
-  //         if (event.target === textarea) {
-  //           mirroredEle.scrollTop = textarea.scrollTop;
-  //           // Kích hoạt sự kiện scroll bằng tay để đảm bảo đồng bộ
-  //           const scrollEvent = new Event('scroll');
-  //           textarea.dispatchEvent(scrollEvent);
-  //           mirroredEle.style.visibility = 'hidden';
-  //         }
-  //       },
-  //       true,
-  //     );
-
-  //     return () => {
-  //       document.removeEventListener('selectionchange', handleSelectionChange);
-  //       document.removeEventListener('input', handleSelectionChange);
-  //       document.removeEventListener('focus', handleSelectionChange);
-  //       document.removeEventListener('blur', handleSelectionChange);
-  //     };
-  //   }
-  // }, []);
-
-
-   useEffect(() => {
+  useEffect(() => {
     const containerEle = document.getElementById('container');
     const textarea = document.getElementById('textarea') as HTMLTextAreaElement;
     if (containerEle && textarea) {
@@ -867,7 +797,6 @@ function MainScreen() {
       mirroredEle.addEventListener('mousedown', (event) => {
         event.preventDefault(); // Ngăn sự kiện focus bị mất khi click vào custom caret
       });
-
       const textareaStyles = window.getComputedStyle(textarea);
       [
         'border',
@@ -902,7 +831,6 @@ function MainScreen() {
         if (document.activeElement !== textarea) {
           return;
         }
-
         // Lấy vị trí con trỏ
         const cursorPos = textarea.selectionStart;
         const textBeforeCursor = textarea.value.substring(0, cursorPos);
@@ -914,7 +842,6 @@ function MainScreen() {
 
         const caretLineIndex = linesBeforeCursor.length - 1; // Dòng hiện tại của caret
         const caretOffset = linesBeforeCursor[caretLineIndex].length; // Vị trí trong dòng
-
         // Reset nội dung của mirroredEle
         mirroredEle.innerHTML = '';
 
@@ -925,28 +852,23 @@ function MainScreen() {
           lineEle.classList.add('container__line');
           lineEle.textContent = line || '\u200B'; // Sử dụng ký tự zero-width space cho dòng trống
           mirroredEle.appendChild(lineEle);
-
           if (index === caretLineIndex) {
             // Thêm caret vào dòng hiện tại
             const caretEle = document.createElement('span');
             caretEle.classList.add('container__cursor');
             caretEle.innerHTML = '&nbsp;';
-
             // Chia dòng tại vị trí caret
             const preText = document.createTextNode(line.substring(0, caretOffset));
             const postText = document.createTextNode(line.substring(caretOffset));
-
             lineEle.innerHTML = ''; // Xóa nội dung cũ để thêm caret
             lineEle.appendChild(preText);
             lineEle.appendChild(caretEle);
             lineEle.appendChild(postText);
           }
         });
-
         // Đồng bộ cuộn
         mirroredEle.scrollTop = textarea.scrollTop;
       };
-
       // Đồng bộ cuộn khi scroll xảy ra
       textarea.addEventListener('scroll', () => {
         handleSelectionChange();
@@ -958,7 +880,6 @@ function MainScreen() {
         (event) => {
           if (event.target === textarea) {
             mirroredEle.style.visibility = 'visible';
-
             setTimeout(() => {
               handleSelectionChange();
             }, 0);
@@ -993,7 +914,6 @@ function MainScreen() {
     }
   }, []);
 
-
   useEffect(() => {
     if (actionMess !== 'WAIT') {
       const preTags = document.querySelectorAll('.item-chat pre');
@@ -1019,7 +939,23 @@ function MainScreen() {
         codeElement.removeAttribute('class');
       }
     });
+
+    document.querySelectorAll('.item-chat a').forEach((link) => {
+      link.setAttribute('target', '_blank');
+    });
+    document.querySelectorAll('.item-chat input').forEach((link) => {
+      link.setAttribute('type', 'checkbox');
+    });
+    document.querySelectorAll('.item-chat .sr-only').forEach((el) => {
+      el.remove();
+    });
   }, [msgRef.current, forceRenderValue, actionMess]);
+
+  console.log('msg', messages);
+  console.log('messageStatus', messageStatus);
+  console.log('actionMess', actionMess);
+
+  const hasFootnotesRef = useRef(false);
 
   return (
     <div id="main-screen" className="container">
@@ -1056,7 +992,6 @@ function MainScreen() {
               <button
                 onClick={() => {
                   history.push('/history');
-                  handleStopGenarate();
                 }}
               >
                 <img id="menu-icon" src={require('../assets/images/back-icon.png')} alt="back-icon" />
@@ -1191,6 +1126,32 @@ function MainScreen() {
 
               msgRef.current = sanitizedHtml;
 
+              hasFootnotesRef.current = regexFootnotes.test(item.message) && !regexMath.test(item.message);
+
+              // Tách đoạn văn thành các phần trước và sau từ "Chú thích:"
+              const parts = item.message.split('**Chú thích:**');
+              let result = '';
+              if (regexFootnotes.test(item.message) && !regexMath.test(item.message)) {
+                if (parts.length === 2) {
+                  const references = parts[0]; // Phần trước "Chú thích:"
+                  const notes = parts[1]; // Phần sau "Chú thích:"
+
+                  // Thay thế các số thứ tự trong phần "Chú thích:"
+                  const updatedNotes = notes.replace(/(?<!\[)\^(\d+)(?!\])/g, '[$&]').replace(/^(\d+)\./gm, '[^$1]:');
+
+                  // Ghép lại toàn bộ đoạn văn
+                  result = `${references}**Chú thích:**${updatedNotes}`;
+                } else {
+                  result = item.message.replace(/(?<!\[)\^(\d+)(?!\])/g, '[$&]').replace(/^(\d+)\./gm, '[^$1]:');
+                }
+              }
+
+              console.log('rss', result);
+              // console.log('hasMath', hasMath);
+              // console.log('hasF', regexFootnotes.test(item.message));
+              // console.log('has_', hasFootnotesRef.current);
+              // console.log('nodef', item);
+
               return (
                 <div
                   className="item-chat-view"
@@ -1221,38 +1182,41 @@ function MainScreen() {
                     }}
                   >
                     {hasImage && (
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) =>
-                            imgStatus[src as string] !== 'error' ? (
-                              <div className="img-download">
-                                <img
-                                  src={src}
-                                  alt={alt}
-                                  style={{
-                                    width: '160px',
-                                    height: '160px',
-                                    objectFit: 'cover',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                  }}
-                                  onClick={() => handleImageClick(src as string)}
-                                  onError={() => handleImageError(src as string)}
-                                  ref={imgRef}
-                                />
-                                <img
-                                  src={IconDownGray}
-                                  alt="icon-down"
-                                  style={{ position: 'absolute', right: '10px', top: '10px' }}
-                                  onClick={() => handleDownloadImage(src)}
-                                />
-                              </div>
-                            ) : null,
-                        }}
-                      >
-                        {item.message}
-                      </ReactMarkdown>
+                      <>
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) =>
+                              imgStatus[src as string] !== 'error' ? (
+                                <div className="img-download">
+                                  <img
+                                    src={src}
+                                    alt={alt}
+                                    style={{
+                                      width: '160px',
+                                      height: '160px',
+                                      objectFit: 'cover',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                    }}
+                                    onClick={() => handleImageClick(src as string)}
+                                    onError={() => handleImageError(src as string)}
+                                    ref={imgRef}
+                                  />
+                                  <img
+                                    src={IconDownGray}
+                                    alt="icon-down"
+                                    style={{ position: 'absolute', right: '10px', top: '10px' }}
+                                    onClick={() => handleDownloadImage(src)}
+                                  />
+                                </div>
+                              ) : null,
+                          }}
+                        >
+                          {item.message}
+                        </ReactMarkdown>
+                        <span className="streaming"></span>
+                      </>
                     )}
 
                     {hasLink && hasCode && (
@@ -1263,7 +1227,7 @@ function MainScreen() {
                         }}
                       ></p>
                     )}
-                    {hasLink && !hasCode && (
+                    {hasLink && !hasCode && !hasFootnotesRef.current && (
                       <p
                         className="item-text-chat"
                         dangerouslySetInnerHTML={{
@@ -1310,7 +1274,14 @@ function MainScreen() {
                         else return <InlineMath math={latex.content} />;
                       })}
 
-                    {!hasLink && !hasImage && !hasCode && !hasMath && !hasMarkdown ? (
+                    {hasFootnotesRef.current && (
+                      <p className="item-text-chat" style={{ display: 'inline' }}>
+                        <ReactMarkdown children={result} remarkPlugins={[remarkGfm, remarkKeepFootnotes]} />
+                        <span className="streaming"></span>
+                      </p>
+                    )}
+
+                    {!hasLink && !hasImage && !hasCode && !hasMath && !hasMarkdown && !hasFootnotesRef.current ? (
                       item.role === 'User' ? (
                         <p className="item-text-chat">{item.message}</p>
                       ) : (
