@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable no-useless-escape */
 import { useHistory, useLocation } from 'react-router-dom';
-import { useContext, useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { marked } from 'marked';
 import api from '../api/VsocApi';
 import {
@@ -29,7 +29,7 @@ import IconLike from '../assets/icons/icon-like.svg';
 import IconDisLike from '../assets/icons/icon-dislike.svg';
 import IconLiked from '../assets/icons/icon-liked.svg';
 import IconDisLiked from '../assets/icons/icon-disliked.svg';
-import { feedbackMessageAsync, getMessagesApiAsync, stopNextMessageAsync } from '../api/eventSource';
+import { feedbackMessageAsync, getMessagesApiAsync } from '../api/eventSource';
 import IcondSendActive from '../assets/icons/icon-send-active.svg';
 import ErrorIcon from '../assets/icons/icon-close-red.svg';
 import AlertIcon from '../assets/icons/icon-alert.svg';
@@ -39,33 +39,19 @@ import Prism from 'prismjs';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import logoImage from '../assets/images/vSOC-logo.png';
-import childImage from '../assets/images/child.png';
 import IconClose from '../assets/icons/icon-close.svg';
 import IconDownload from '../assets/icons/icon-download.svg';
-import { useSelector } from 'react-redux';
-import { AppDispatch, RootState } from '../store/store';
-import { useDispatch } from 'react-redux';
-import IconDownGray from '../assets/icons/icon-down-gray.svg';
 import { BlockMath, InlineMath } from 'react-katex';
 import 'katex/dist/katex.min.css';
-import {
-  IconStreaming,
-  regexCode,
-  regexFootnotes,
-  regexImage,
-  regexLink,
-  regexMarkdown,
-  regexMath,
-} from '../utils/constantRegex';
-import remarkKeepFootnotes from '../utils/remarkKeepFootnotes';
+import MarkdownIt from 'markdown-it';
+import markdownItFootnote from 'markdown-it-footnote';
+import showdown from 'showdown';
+import showdownFootnotes from 'showdown-footnotes';
+import MyComponent from '../components/MarkdownWithMath';
 
 interface IVsocStoredMessageStore extends IVsocStoredMessage {
   isStored?: boolean;
   message_html: string;
-}
-
-interface ImgStatus {
-  [key: string]: 'loaded' | 'error';
 }
 
 function MainScreen() {
@@ -89,11 +75,15 @@ function MainScreen() {
   const [timeoutIds, setTimeoutIds] = useState<{ [key: string]: NodeJS.Timeout }>({});
   const [errorMessage, setErrorMessage] = useState('');
   const [stopGenerate, setStopGenerate] = useState(false);
-  const [messageStatus, setMessageStatus] = useState<{ msg_id: string; msg_type: 'user' | 'bot'; task_id: string }>({
-    msg_id: '',
-    msg_type: 'user',
-    task_id: '',
-  });
+  const [messageStatus, setMessageStatus] = useState<{ msg_id: string; msg_type: 'user' | 'bot'; task_id: string }>(
+    () => {
+      const local = JSON.parse(localStorage.getItem('status_bot') || '[]');
+      const isGenerateAnswerLocal = JSON.parse(localStorage.getItem('answer_bot') || '""');
+      if (isGenerateAnswerLocal === 'no_answer' && local[0] === 'sending_question' && local[1] === 'exit_while_sending')
+        return { msg_id: '', msg_type: 'user', task_id: '' };
+      return { msg_id: '', msg_type: 'bot', task_id: '' };
+    },
+  );
   const [leftOffset, setLeftOffset] = useState({ width: '0px', heigth: '0px' });
 
   const isStopAnswerRef = useRef(false);
@@ -102,11 +92,6 @@ function MainScreen() {
   const msgRef = useRef<string>('');
   const imgRef = useRef<HTMLImageElement | null>(null);
   const pRef = useRef<HTMLParagraphElement | null>(null);
-  const parentMsgIdRef = useRef<string | null>(null);
-
-  const isBotRunStatusRedux = useSelector((state: RootState) => state.botStatus.isBotRunStatus);
-  const isChatBlockCode = useSelector((state: RootState) => state.botStatus.isChatBlockCode);
-  const dispatch: AppDispatch = useDispatch();
 
   chrome?.runtime?.onMessage?.addListener((message: IChromeMessage) => {
     if (message && message.type === 'text_from_monitor') {
@@ -140,11 +125,11 @@ function MainScreen() {
   }, [hoverFeeback?.msg_id, hoverFeeback?.display, feedbackRef.current]);
 
   useEffect(() => {
-    if (location.state?.id) {
-      setDetailHis(location.state);
-      getListMessage(location.state.id);
-      setCurrentConversationID(location.state.id);
-    }
+    // if (location.state?.id) {
+    setDetailHis(location.state);
+    getListMessage('1');
+    setCurrentConversationID('1');
+    // }
   }, []);
 
   marked.use({
@@ -195,54 +180,61 @@ function MainScreen() {
   };
 
   const getListMessage = async (id: string) => {
-    const listMessages = await api.message.listStoredAsync({
-      conversation_id: id,
-      limit: 30,
-    });
-    console.log('listMSG', listMessages);
-
-    const dataMessagesApi = (await getMessagesApiAsync({ conversation_id: id, limit: 30 }))
-      .result as IVsocGetMessageApiArgs[];
-
-    if (listMessages.result) {
-      const filterListMsg = listMessages.result.filter((item) => !(item.message === ''));
-      const _list: IVsocStoredMessageStore[] = [];
-      for (const item of filterListMsg) {
-        _list.push({
-          ...item,
-          isStored: true,
-          message_html: await markdownToHtml(item.message),
-        });
-      }
-
-      const transformedMessages = _list.map((item, index) => {
-        if (index % 2 === 0)
-          return {
-            ...item,
-            message_id: dataMessagesApi[index / 2]?.message_id,
-            feedback: dataMessagesApi[index / 2]?.feedback,
-          };
-        return item;
+    try {
+      console.log('chạy vào ko');
+      const listMessages = await api.message.listStoredAsync({
+        conversation_id: id,
+        limit: 30,
       });
+      const dataMessagesApi = (await getMessagesApiAsync({ conversation_id: id, limit: 30 }))
+        .result as IVsocGetMessageApiArgs[];
+      // console.log('api', dataMessagesApi);
 
-      transformedMessages.reverse();
-      if (dataMessagesApi.length) {
-        parentMsgIdRef.current = dataMessagesApi[0]?.message_id;
-      }
-      console.log('done2', transformedMessages);
+      if (listMessages.result) {
+        const filterListMsg = listMessages.result.filter((item) => !(item.message === ''));
+        const _list: IVsocStoredMessageStore[] = [];
+        for (const item of filterListMsg) {
+          _list.push({
+            ...item,
+            isStored: true,
+            message_html: await markdownToHtml(item.message),
+          });
+        }
 
-      setMessages(transformedMessages);
-      scrollToBottom();
-      if (listMessages.result[0]?.action === 'WAIT') {
-        setActionMess('WAIT');
-        setTimeout(() => {
-          getListMessage(id);
-        }, 1000);
-      } else {
-        setActionMess('');
+        const transformedMessages = _list.map((item, index) => {
+          if (index % 2 === 0)
+            return {
+              ...item,
+              message_id: dataMessagesApi[index / 2]?.message_id,
+              feedback: dataMessagesApi[index / 2]?.feedback,
+            };
+          return item;
+        });
+
+        transformedMessages.reverse();
+        setMessages(transformedMessages);
+        scrollToBottom();
+
+        if (listMessages.result[0]?.action === 'WAIT') {
+          setActionMess('WAIT');
+          setTimeout(() => {
+            getListMessage(id);
+          }, 1000);
+        } else {
+          setActionMess('');
+        }
       }
+    } catch (error) {
+      console.log('lỗi ko');
+      setActionMess('WAIT');
     }
   };
+
+  useEffect(() => {
+    setTimeout(() => {
+      setForceRenderValue(forceRenderValue + 1);
+    }, 5000);
+  });
 
   const scrollToBottom = () => {
     if (scrollRef.current) {
@@ -254,18 +246,14 @@ function MainScreen() {
   };
 
   const getListData = async (id: string) => {
-    console.log('có vào đây ko');
-
     if (!isStopAnswerRef.current) {
       try {
+        console.log('có get ko');
         const data = await api.message.getNextAsync({
           conversation_id: id,
         });
-
+        console.log('có get', data.result);
         if (data.result) {
-          console.log('result', data.result);
-
-          parentMsgIdRef.current = data.result.message_id as string;
           if (!data.result.message && data.result.action == 'WAIT') {
             setTimeout(() => getListData(id), 1000);
             return;
@@ -274,10 +262,14 @@ function MainScreen() {
           if (data.result.action == 'DONE') {
             // xử lý khi bot trả lời xong
             // ...
+            // console.log('DONE');
             setStopGenerate(true);
             isStopAnswerRef.current = false;
+            localStorage.setItem('status_bot', JSON.stringify([]));
+            localStorage.setItem('answer_bot', JSON.stringify('no_answer'));
           }
-
+          localStorage.setItem('status_bot', JSON.stringify(['sending_question']));
+          localStorage.setItem('answer_bot', JSON.stringify('generating_answer'));
           await saveMessage(data.result);
           if (
             messages.length > 0 &&
@@ -295,9 +287,9 @@ function MainScreen() {
               ...data.result,
               message_html: await markdownToHtml(data.result.message),
             };
+
             messages.push(message);
           }
-          console.log('done', messages);
 
           setMessages([...messages]);
           setForceRenderValue((prev) => prev + 1);
@@ -310,7 +302,7 @@ function MainScreen() {
           setActionMess(data.result.action);
 
           if (data.result.action === 'WAIT' && !isStopAnswerRef.current) {
-            setTimeout(() => getListData(id), 30);
+            setTimeout(() => getListData(id), 5000);
           }
         }
       } catch (error) {
@@ -333,11 +325,12 @@ function MainScreen() {
     }
   };
 
-  const createConversation = async (msg: string, type: VsocConversationType, parentMsgId: string | null) => {
+  // console.log('mess=>', messages);
+
+  const createConversation = async (msg: string, type: VsocConversationType) => {
     const dataCreate = await api.conversation.createAsync({
       text: msg,
       type: type,
-      parentMsgId,
     });
     if (dataCreate.result?.conversation_id) {
       await saveConversation(msg, dataCreate.result.conversation_id);
@@ -363,6 +356,8 @@ function MainScreen() {
       if (!textValue.trim()) {
         return;
       }
+      localStorage.setItem('status_bot', JSON.stringify(['sending_question']));
+      localStorage.setItem('answer_bot', JSON.stringify('no_answer'));
       setTextValue('');
       setActionMess('WAIT');
       setStopGenerate(false);
@@ -386,24 +381,23 @@ function MainScreen() {
       messages.push(msg);
       setForceRenderValue((prev) => prev + 1);
       scrollToBottom();
-      if (messages.length <= 1) {
-        conversation_id = await createConversation(textValue, 'QA', null);
-        setCurrentConversationID(conversation_id);
-        msg.conversation_id = conversation_id;
-        await saveMessage(msg);
-        setForceRenderValue((prev) => prev + 1);
-      } else {
-        conversation_id = currentConversationID;
-        await saveMessage(msg);
-        await api.message.sendAsync({
-          conversation_id: conversation_id,
-          text: textValue,
-          parentMsgId: parentMsgIdRef.current,
-        });
-      }
-      console.log('đã chạy đến');
-
-      await getListData(conversation_id);
+      // if (messages.length <= 1) {
+      //   conversation_id = await createConversation(textValue, 'QA');
+      //   setCurrentConversationID(conversation_id);
+      //   msg.conversation_id = conversation_id;
+      //   await saveMessage(msg);
+      //   setForceRenderValue((prev) => prev + 1);
+      // } else {
+      //   conversation_id = currentConversationID;
+      //   await saveMessage(msg);
+      //   await api.message.sendAsync({
+      //     conversation_id: conversation_id,
+      //     text: textValue,
+      //   });
+      // }
+      setTimeout(async () => {
+        await getListData('1');
+      }, 5000);
     } catch (error) {
       setActionMess('');
     }
@@ -414,7 +408,7 @@ function MainScreen() {
     setActionMess('DONE');
     messages[messages.length - 1].action = 'DONE';
 
-    await stopNextMessageAsync({ conversation_id: currentConversationID });
+    // await stopNextMessageAsync({ conversation_id: currentConversationID });
     if (messageStatus?.task_id) {
       await stopGenarateAsync(messageStatus.task_id);
       setStopGenerate(true);
@@ -506,8 +500,8 @@ function MainScreen() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // const mirror = document.querySelector('.container__mirror') as HTMLDivElement;
     const area = document.querySelector('.container__cursor') as HTMLSpanElement;
+
     // Xử lý khi nhấn Enter
     if (e.key === 'Enter') {
       if (e.ctrlKey && textValue.trim()) {
@@ -518,33 +512,14 @@ function MainScreen() {
           e.preventDefault();
           return false;
         }
-        if (area) {
-          area.style.left = '0px';
-          area.style.top = '0px';
-        }
-        // if (mirror) {
-        //   mirror.style.left = '10px';
-        //   mirror.style.top = '0px';
-        // }
+        if (area) area.style.left = '0px';
         sendMessages();
       }
     }
   };
   const handleBlur = () => {
-    console.log('blur');
-
     const area = document.querySelector('.container__cursor') as HTMLSpanElement;
-    if (area) area.style.display = 'none';
-    const mirror = document.querySelector('.container__mirror') as HTMLDivElement;
-    if (mirror) mirror.style.display = 'none';
-  };
-  const handleFocus = () => {
-    console.log('focus');
-
-    const area = document.querySelector('.container__cursor') as HTMLSpanElement;
-    if (area) area.style.display = 'block';
-    const mirror = document.querySelector('.container__mirror') as HTMLDivElement;
-    if (mirror) mirror.style.display = 'block';
+    if (area) area.remove();
   };
 
   useEffect(() => {
@@ -555,11 +530,13 @@ function MainScreen() {
 
   const [openImageModal, setOpenImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState('');
-  const [imgStatus, setImgStatus] = useState<ImgStatus>({});
+  const [isLoadedImgError, setIsLoadedImgError] = useState(false);
 
   const handleImageClick = (imageUrl: string) => {
     setOpenImageModal(true);
-    setSelectedImage(imageUrl);
+    if (!isLoadedImgError) {
+      setSelectedImage(imageUrl);
+    }
   };
 
   const handleCloseModal = () => {
@@ -581,34 +558,26 @@ function MainScreen() {
         });
       })
       .catch((err) => {
-        //
+        console.log('err', err);
       });
   };
 
-  const handleImageError = (src: string) => {
-    setImgStatus((prevState) => ({
-      ...prevState,
-      [src]: 'error',
-    }));
+  const handleImageError = (e: any) => {
+    // e.target.src = logoImage;
+    setIsLoadedImgError(true);
+    setSelectedImage(e.target.src);
   };
 
   useEffect(() => {
+    const viewportWidth = window.innerWidth;
     const tables = document.querySelectorAll<HTMLTableElement>('.item-chat table');
 
     tables.forEach((table) => {
       if (table) {
-        const parent = table.parentElement;
-
-        if (parent && parent.classList.contains('div-table')) {
-          console.log('Table đã có thẻ cha với class "div-table".');
+        if (viewportWidth <= 450) {
+          table.style.display = 'block';
         } else {
-          const wrapper = document.createElement('div');
-          wrapper.classList.add('div-table');
-          if (table.parentNode) {
-            table.parentNode.insertBefore(wrapper, table);
-            wrapper.appendChild(table);
-            console.log('Đã thêm thẻ cha với class "div-table".');
-          }
+          table.style.removeProperty('display');
         }
       }
     });
@@ -617,18 +586,17 @@ function MainScreen() {
   const calculateLeftOffset = () => {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+    const tables = document.querySelectorAll<HTMLTableElement>('.item-chat table');
 
-    // const tables = document.querySelectorAll<HTMLTableElement>('.item-chat table');
-
-    // tables.forEach((table) => {
-    //   if (table) {
-    //     if (viewportWidth <= 450) {
-    //       table.style.display = 'block';
-    //     } else {
-    //       table.style.removeProperty('display');
-    //     }
-    //   }
-    // });
+    tables.forEach((table) => {
+      if (table) {
+        if (viewportWidth <= 450) {
+          table.style.display = 'block';
+        } else {
+          table.style.removeProperty('display');
+        }
+      }
+    });
 
     if (imgRef.current) {
       const imgWidth = imgRef.current.naturalWidth;
@@ -666,13 +634,12 @@ function MainScreen() {
   useEffect(() => {
     const streamingElementsUser = document.querySelectorAll('.user-item-chat .streaming');
     const streamingElementsBot = document.querySelectorAll('.item-text-chat .streaming');
-    const streamingElementsAll = document.querySelectorAll('.item-chat .streaming');
-    if (streamingElementsAll.length && actionMess !== 'WAIT') {
-      streamingElementsAll.forEach((el) => el.remove());
-    }
     streamingElementsUser.forEach((el) => el.remove());
     streamingElementsBot.forEach((el, index) => {
-      if (actionMess === 'WAIT') {
+      if (
+        actionMess === 'WAIT' &&
+        !JSON.parse(localStorage.getItem('status_bot') || '[]').includes('exit_while_sending')
+      ) {
         index !== streamingElementsBot.length - 1 && el.remove();
       } else {
         el.remove();
@@ -683,76 +650,75 @@ function MainScreen() {
   const isCodeBlockRef = useRef(false);
   useEffect(() => {
     const preElements = document.querySelectorAll(
-      '.item-chat pre[class*="language"]:not([class*="language-markdown"])',
+      'pre[class*="language"]:not([class*="language-markdown"])',
     ) as NodeListOf<HTMLElement>;
 
-    if (actionMess !== 'WAIT') {
-      if (preElements.length) {
-        preElements.forEach((pre: HTMLElement) => {
-          // Kiểm tra nếu nút đã tồn tại thì không tạo thêm
-          if (pre.querySelector('button')) return;
+    if (preElements.length) {
+      preElements.forEach((pre: HTMLElement) => {
+        // Đặt position relative cho <pre>
+        pre.style.position = 'relative';
 
-          // Tạo nút button
-          const copyButton = document.createElement('button');
-          copyButton.innerText = 'Copy';
-          copyButton.style.position = 'absolute';
-          copyButton.style.top = '10px';
-          copyButton.style.right = '12px';
-          copyButton.style.width = 'fit-content';
-          copyButton.style.height = '32px';
-          copyButton.style.backgroundColor = '#494950';
-          copyButton.style.color = '#E5E5E7';
-          copyButton.style.fontWeight = '500';
-          copyButton.style.fontSize = '14px';
-          copyButton.style.border = 'none';
-          copyButton.style.borderRadius = '4px';
-          copyButton.style.cursor = 'pointer';
-          copyButton.style.zIndex = '999';
+        // Kiểm tra nếu nút đã tồn tại thì không tạo thêm
+        if (pre.querySelector('button')) return;
 
-          // Thêm sự kiện click cho nút Copy
-          copyButton.addEventListener('click', () => {
-            // Lấy nội dung của thẻ <code> bên trong <pre>
-            const codeElement = pre.querySelector('code');
-            if (codeElement) {
-              const codeContent = codeElement.innerText;
-              // Sao chép nội dung vào clipboard
-              navigator.clipboard
-                .writeText(codeContent)
-                .then(() => {
-                  // Khi copy thành công
-                  copyButton.innerText = 'Copied';
-                  copyButton.style.cursor = 'default';
-                  copyButton.disabled = true; // Vô hiệu hóa nút
+        // Tạo nút button
+        const copyButton = document.createElement('button');
+        copyButton.innerText = 'Copy';
+        copyButton.style.position = 'absolute';
+        copyButton.style.top = '10px';
+        copyButton.style.right = '12px';
+        copyButton.style.width = '60px';
+        copyButton.style.height = '32px';
+        copyButton.style.backgroundColor = '#494950';
+        copyButton.style.color = '#E5E5E7';
+        copyButton.style.fontWeight = '500';
+        copyButton.style.fontSize = '14px';
+        copyButton.style.border = 'none';
+        copyButton.style.borderRadius = '4px';
+        copyButton.style.cursor = 'pointer';
+        copyButton.style.zIndex = '999';
 
-                  // Sau 1 giây, khôi phục nút về trạng thái ban đầu
-                  setTimeout(() => {
-                    copyButton.innerText = 'Copy';
-                    copyButton.style.cursor = 'pointer';
-                    copyButton.disabled = false; // Bật lại nút
-                  }, 1000);
-                })
-                .catch((err) => {
-                  console.error('Failed to copy text: ', err);
-                });
-            }
-          });
+        // Thêm sự kiện click cho nút Copy
+        copyButton.addEventListener('click', () => {
+          // Lấy nội dung của thẻ <code> bên trong <pre>
+          const codeElement = pre.querySelector('code');
+          if (codeElement) {
+            const codeContent = codeElement.innerText;
+            // Sao chép nội dung vào clipboard
+            navigator.clipboard
+              .writeText(codeContent)
+              .then(() => {
+                // Khi copy thành công
+                copyButton.innerText = 'Copied';
+                copyButton.style.cursor = 'default';
+                copyButton.disabled = true; // Vô hiệu hóa nút
 
-          // Thêm nút vào bên trong thẻ <pre>
-          pre.appendChild(copyButton);
+                // Sau 1 giây, khôi phục nút về trạng thái ban đầu
+                setTimeout(() => {
+                  copyButton.innerText = 'Copy';
+                  copyButton.style.cursor = 'pointer';
+                  copyButton.disabled = false; // Bật lại nút
+                }, 1000);
+              })
+              .catch((err) => {
+                console.error('Failed to copy text: ', err);
+              });
+          }
         });
-      }
+
+        // Thêm nút vào bên trong thẻ <pre>
+        pre.appendChild(copyButton);
+      });
     }
   }, [isCodeBlockRef.current, actionMess, msgRef.current, forceRenderValue]);
 
+  // // Hàm tách HTML và công thức
   const parseText = (text: string) => {
-    // Thay thế tất cả dấu '-' thành chuỗi rỗng
-    text = text.replace(/-/g, '');
-
-    const regex = /\\(\(|\[)([\s\S]*?)\\(\)|\]|\n)/g;
-
+    const regex = /\\(\(|\[)(.*?)\\(\)|\])/g; // Tìm công thức toán học (\\( ... \\))
     let lastIndex = 0;
-    const parts: { type: string; content: string }[] = [];
+    const parts = [];
 
+    // Chạy qua tất cả các công thức toán học và chia chúng ra
     let match;
     while ((match = regex.exec(text)) !== null) {
       // Thêm phần HTML trước công thức
@@ -771,18 +737,99 @@ function MainScreen() {
 
     return parts;
   };
+  const [katex, setKatex] = useState<string[]>([]);
+  const katexRef = useRef<Element[]>([]);
+
+  // useEffect(() => {
+  //   // Lấy tất cả các phần tử có lớp 'katex-html' và loại bỏ chúng
+  //   const katexHtmlElements = document.querySelectorAll('.katex-html');
+  //   katexHtmlElements.forEach((el) => el.remove());
+  //   const katexMathmlElements = document.querySelectorAll('.katex');
+  //   katexMathmlElements.forEach((el) => katexRef.current.push(el));
+  //   const htmlStrings = katexRef.current.map((el) => el.outerHTML);
+  //   setKatex(htmlStrings);
+  // }, [actionMess, msgRef.current, forceRenderValue]);
+  // console.log('arrr', katex);
 
   const copyContentRef = useRef<{ position: number; content: string }[]>([]);
 
   useEffect(() => {
-    copyContentRef.current = [];
     const contents = document.querySelectorAll('.item-chat');
     contents.forEach((el, index) => {
-      const parsedContent = (el.textContent as string).replace(/\[\s?[x ]\s?\]/g, '').replace(/copy/gi, '');
+      const parsedContent = (el.textContent as string).replace(/\[\s?[x ]\s?\]/g, '');
 
       copyContentRef.current.push({ position: 2 * index + 1, content: parsedContent });
     });
-  }, [msgRef.current, forceRenderValue, actionMess]);
+  }, [forceRenderValue, actionMess, msgRef.current]);
+
+  //   const containerEle = document.getElementById('container');
+  //   const textarea = document.getElementById('textarea') as HTMLTextAreaElement;
+  //   if (containerEle && textarea) {
+  //     const mirroredEle = document.createElement('div');
+  //     mirroredEle.textContent = textarea.value;
+  //     mirroredEle.classList.add('container__mirror');
+  //     containerEle.prepend(mirroredEle);
+
+  //     const textareaStyles = window.getComputedStyle(textarea);
+  //     [
+  //       'border',
+  //       'boxSizing',
+  //       'fontFamily',
+  //       'fontSize',
+  //       'fontWeight',
+  //       'letterSpacing',
+  //       'lineHeight',
+  //       'padding',
+  //       'textDecoration',
+  //       'textIndent',
+  //       'textTransform',
+  //       'whiteSpace',
+  //       'wordSpacing',
+  //       'wordWrap',
+  //     ].forEach((property: any) => {
+  //       mirroredEle.style[property] = textareaStyles[property];
+  //     });
+  //     mirroredEle.style.borderColor = 'transparent';
+
+  //     const parseValue = (v: any) => (v.endsWith('px') ? parseInt(v.slice(0, -2), 10) : 0);
+  //     const borderWidth = parseValue(textareaStyles.borderWidth);
+
+  //     const ro = new ResizeObserver(() => {
+  //       mirroredEle.style.width = `${textarea.clientWidth + 2 * borderWidth}px`;
+  //       mirroredEle.style.height = `${textarea.clientHeight + 2 * borderWidth}px`;
+  //     });
+  //     ro.observe(textarea);
+
+  //     textarea.addEventListener('scroll', () => {
+  //       mirroredEle.scrollTop = textarea.scrollTop;
+  //     });
+
+  //     const handleSelectionChange = () => {
+  //       if (document.activeElement !== textarea) {
+  //         return;
+  //       }
+  //       const cursorPos = textarea.selectionStart;
+  //       const textBeforeCursor = textarea.value.substring(0, cursorPos);
+  //       const textAfterCursor = textarea.value.substring(cursorPos);
+
+  //       const pre = document.createTextNode(textBeforeCursor);
+  //       const post = document.createTextNode(textAfterCursor);
+  //       const caretEle = document.createElement('span');
+  //       caretEle.classList.add('container__cursor');
+  //       caretEle.innerHTML = '&nbsp;';
+
+  //       mirroredEle.innerHTML = '';
+  //       mirroredEle.append(pre, caretEle, post);
+  //     };
+  //     document.addEventListener('selectionchange', handleSelectionChange);
+  //     document.addEventListener('input', handleSelectionChange);
+
+  //     return () => {
+  //       document.removeEventListener('selectionchange', handleSelectionChange);
+  //       document.removeEventListener('input', handleSelectionChange);
+  //     };
+  //   }
+  // }, []);
 
   useEffect(() => {
     const containerEle = document.getElementById('container');
@@ -797,6 +844,7 @@ function MainScreen() {
       mirroredEle.addEventListener('mousedown', (event) => {
         event.preventDefault(); // Ngăn sự kiện focus bị mất khi click vào custom caret
       });
+
       const textareaStyles = window.getComputedStyle(textarea);
       [
         'border',
@@ -831,6 +879,7 @@ function MainScreen() {
         if (document.activeElement !== textarea) {
           return;
         }
+
         // Lấy vị trí con trỏ
         const cursorPos = textarea.selectionStart;
         const textBeforeCursor = textarea.value.substring(0, cursorPos);
@@ -842,6 +891,7 @@ function MainScreen() {
 
         const caretLineIndex = linesBeforeCursor.length - 1; // Dòng hiện tại của caret
         const caretOffset = linesBeforeCursor[caretLineIndex].length; // Vị trí trong dòng
+
         // Reset nội dung của mirroredEle
         mirroredEle.innerHTML = '';
 
@@ -852,23 +902,28 @@ function MainScreen() {
           lineEle.classList.add('container__line');
           lineEle.textContent = line || '\u200B'; // Sử dụng ký tự zero-width space cho dòng trống
           mirroredEle.appendChild(lineEle);
+
           if (index === caretLineIndex) {
             // Thêm caret vào dòng hiện tại
             const caretEle = document.createElement('span');
             caretEle.classList.add('container__cursor');
             caretEle.innerHTML = '&nbsp;';
+
             // Chia dòng tại vị trí caret
             const preText = document.createTextNode(line.substring(0, caretOffset));
             const postText = document.createTextNode(line.substring(caretOffset));
+
             lineEle.innerHTML = ''; // Xóa nội dung cũ để thêm caret
             lineEle.appendChild(preText);
             lineEle.appendChild(caretEle);
             lineEle.appendChild(postText);
           }
         });
+
         // Đồng bộ cuộn
         mirroredEle.scrollTop = textarea.scrollTop;
       };
+
       // Đồng bộ cuộn khi scroll xảy ra
       textarea.addEventListener('scroll', () => {
         handleSelectionChange();
@@ -880,6 +935,7 @@ function MainScreen() {
         (event) => {
           if (event.target === textarea) {
             mirroredEle.style.visibility = 'visible';
+
             setTimeout(() => {
               handleSelectionChange();
             }, 0);
@@ -914,48 +970,20 @@ function MainScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    if (actionMess !== 'WAIT') {
-      const preTags = document.querySelectorAll('.item-chat pre');
-
-      preTags.forEach((pre) => {
-        if (pre.parentNode) {
-          const wrapperDiv = document.createElement('div');
-          wrapperDiv.classList.add('code-block');
-          pre.parentNode.insertBefore(wrapperDiv, pre);
-          wrapperDiv.appendChild(pre);
-        }
-      });
-    }
-  }, [msgRef.current, forceRenderValue, actionMess]);
-  useEffect(() => {
-    const preElements = document.querySelectorAll('.user-item-chat > .item-text-chat > pre');
-
-    preElements.forEach((pre) => {
-      pre.removeAttribute('class');
-
-      const codeElement = pre.querySelector('code');
-      if (codeElement) {
-        codeElement.removeAttribute('class');
-      }
-    });
-
-    document.querySelectorAll('.item-chat a').forEach((link) => {
-      link.setAttribute('target', '_blank');
-    });
-    document.querySelectorAll('.item-chat input').forEach((link) => {
-      link.setAttribute('type', 'checkbox');
-    });
-    document.querySelectorAll('.item-chat .sr-only').forEach((el) => {
-      el.remove();
-    });
-  }, [msgRef.current, forceRenderValue, actionMess]);
-
-  console.log('msg', messages);
+  console.log('local', JSON.parse(localStorage.getItem('status_bot') || '[]'));
+  console.log('localAnswer', JSON.parse(localStorage.getItem('answer_bot') || '""'));
   console.log('messageStatus', messageStatus);
-  console.log('actionMess', actionMess);
+  console.log('action', actionMess);
 
-  const hasFootnotesRef = useRef(false);
+  useEffect(() => {
+    return () => {
+      console.log('cleanup');
+      const local = JSON.parse(localStorage.getItem('status_bot') || '[]');
+      if (local && local[0] === 'sending_question') {
+        localStorage.setItem('status_bot', JSON.stringify(['sending_question', 'exit_while_sending']));
+      }
+    };
+  }, []);
 
   return (
     <div id="main-screen" className="container">
@@ -1048,17 +1076,29 @@ function MainScreen() {
         {messages.length > 0 ? (
           <div ref={scrollRef} id="text-chat-panel" className="text-chat-panel">
             {messages.map((item: IVsocStoredMessageStore, index) => {
-              const hasLink = regexLink.test(item.message);
-              const hasCode = regexCode.test(item.message_html);
-              const hasImage = regexImage.test(item.message);
+              // console.log('mark', item.message);
+              const hasImage = /!\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/.test(item.message);
+              const hasLink = /^(?!.*!\[)[^!]*\[[^\]]+\]\([^\)]+\).*/.test(item.message);
+              const hasCode =
+                /<pre><code(?![^>]*class=["'][^"']*language-markdown[^"']*["'])[^\0]*>(?!.*(?:\\\(|\\\)|\\\[|\\\]|!\[.*\]\(.*\)|\[[^\]]+\]\([^\)]+\)))[\s\S]*?<\/code><\/pre>/.test(
+                  item.message_html,
+                );
               isCodeBlockRef.current = hasCode;
-              const hasMarkdown = regexMarkdown.test(item.message_html);
-              const hasMath = regexMath.test(item.message);
+              const hasMarkdown =
+                /<pre><code[^>]*class=["'][^"']*language-markdown[^"']*["'][^>]*>[\s\S]*?<\/code><\/pre>/.test(
+                  item.message_html,
+                );
+              const hasMath = /\\\([^\)]*\\\)|\\\[([^\]]*)\\\]/.test(item.message);
+              // const htmlMathBlockReplace = hasMath
+              //   ? item.message_html
+              //       .replace(/\(/g, '\\\\')
+              //       .replace(/\)/g, '\\\\')
+              //       .replace(/\[/g, '\\\\')
+              //       .replace(/\]/g, '\\\\')
+              //   : item.message_html;
 
               const parsed = parseText(item.message);
-
               let listLatex = [];
-              let arr = [];
               if (hasMath) {
                 listLatex = parsed
                   .map((item) => {
@@ -1076,33 +1116,11 @@ function MainScreen() {
                     }
                     return null;
                   })
-                  .map((item2: any) => ({ ...item2, content: item2.content as string }));
-                if (listLatex.length)
-                  listLatex[listLatex.length - 1].content = ' ' + listLatex[listLatex.length - 1]?.content;
-                arr = listLatex.map((item) => {
-                  if (item.type === 'html') {
-                    if (item.content === '') {
-                      return { ...item, content: ' ' };
-                    } else
-                      return {
-                        ...item,
-                        content:
-                          ' ' +
-                          item.content
-                            .replace(/<p>/g, '<span>')
-                            .replace(/<\/p>/g, '</span>')
-                            .replace(/\./g, ' ')
-                            .replace(/([A-Z])/g, ' $1'),
-                      };
-                  } else if (item.type === 'latex' && item.content === '\\\\\\a, b]\\\\') {
-                    return { ...item, content: '\\\\ [a, b] \\\\' };
-                  }
-                  return { ...item, content: item.content };
-                });
+                  .map((item2: any) => ({ ...item2, content: (item2.content as string).replace(/\n/g, '') }));
               }
-              // console.log('arr', arr);
-              // console.log('latex', listLatex);
-              // console.log('item', item);
+
+              // console.log('hasMath', hasMath);
+              // console.log('math', listLatex);
 
               const renderer = new marked.Renderer();
               if (hasLink) {
@@ -1110,9 +1128,11 @@ function MainScreen() {
                   return `<a href="${href}" target="_blank" rel="noreferrer" style="color:#7EBBFC;">${text}</a>`;
                 };
               }
-              const sanitizedHtmlLink = DOMPurify.sanitize(marked(item.message + IconStreaming, { renderer }), {
-                ALLOWED_ATTR: ['href', 'target', 'rel', 'style', 'class'], // Cho phép các thuộc tính này
-              });
+              const sanitizedHtmlLink = marked(
+                item.message +
+                  '<span class="streaming" style="width: 11px; display: inline-block; height: 3px; background: #89a357;box-shadow: 0px 0px 4px 0px #5fff51;animation: blink 0.5s infinite;"></span>',
+                { renderer },
+              );
 
               const inputClass = item.role === 'User' ? 'user-item-chat' : 'item-chat';
               const builtinRoles: Record<string, IVsocRole> = config.builtin_roles;
@@ -1122,35 +1142,37 @@ function MainScreen() {
                 item.role in builtinRoles ? builtinRoles[item.role].background_color : defaultRole.background_color;
               const imgRole = item.role in builtinRoles ? builtinRoles[item.role].avatar : defaultRole.avatar;
 
-              const sanitizedHtml = DOMPurify.sanitize(item.message_html + IconStreaming);
-
+              const sanitizedHtml =
+                DOMPurify.sanitize(item.message_html) +
+                '<span class="streaming" style="width: 11px; display: inline-block; height: 3px; background: #89a357;box-shadow: 0px 0px 4px 0px #5fff51;animation: blink 0.5s infinite;"></span>';
               msgRef.current = sanitizedHtml;
 
-              hasFootnotesRef.current = regexFootnotes.test(item.message) && !regexMath.test(item.message);
+              const markdownToHTML = (markdown: string) => {
+                const footnotes: any[] = [];
+                const content = markdown.replace(/\^(\d+)/g, (match, index) => {
+                  footnotes.push({ index, content: '' });
+                  return `<sup id="fnref${index}"><a href="#fn${index}">${index}</a></sup>`;
+                });
 
-              // Tách đoạn văn thành các phần trước và sau từ "Chú thích:"
-              const parts = item.message.split('**Chú thích:**');
-              let result = '';
-              if (regexFootnotes.test(item.message) && !regexMath.test(item.message)) {
-                if (parts.length === 2) {
-                  const references = parts[0]; // Phần trước "Chú thích:"
-                  const notes = parts[1]; // Phần sau "Chú thích:"
+                const footerContent = markdown.match(/\^(\d+)\.\s.+/g) || [];
+                footerContent.forEach((line) => {
+                  const match = line.match(/\^(\d+)\.\s(.+)/);
+                  if (match) {
+                    const [_, index, content] = match;
+                    footnotes[Number(index) - 1].content = content;
+                  }
+                });
 
-                  // Thay thế các số thứ tự trong phần "Chú thích:"
-                  const updatedNotes = notes.replace(/(?<!\[)\^(\d+)(?!\])/g, '[$&]').replace(/^(\d+)\./gm, '[^$1]:');
+                const footnoteHtml = footnotes
+                  .map(({ index, content }) => `<li id="fn${index}">${content} <a href="#fnref${index}">↩</a></li>`)
+                  .join('');
 
-                  // Ghép lại toàn bộ đoạn văn
-                  result = `${references}**Chú thích:**${updatedNotes}`;
-                } else {
-                  result = item.message.replace(/(?<!\[)\^(\d+)(?!\])/g, '[$&]').replace(/^(\d+)\./gm, '[^$1]:');
-                }
-              }
+                return `${content}<hr><ol>${footnoteHtml}</ol>`;
+              };
 
-              console.log('rss', result);
-              // console.log('hasMath', hasMath);
-              // console.log('hasF', regexFootnotes.test(item.message));
-              // console.log('has_', hasFootnotesRef.current);
-              // console.log('nodef', item);
+              const converter = new showdown.Converter({ extensions: [showdownFootnotes] });
+
+              const hasFoot = /(\[\d+\]|\^\d+)/.test(item.message);
 
               return (
                 <div
@@ -1182,44 +1204,35 @@ function MainScreen() {
                     }}
                   >
                     {hasImage && (
-                      <>
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) =>
-                              imgStatus[src as string] !== 'error' ? (
-                                <div className="img-download">
-                                  <img
-                                    src={src}
-                                    alt={alt}
-                                    style={{
-                                      width: '160px',
-                                      height: '160px',
-                                      objectFit: 'cover',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                    }}
-                                    onClick={() => handleImageClick(src as string)}
-                                    onError={() => handleImageError(src as string)}
-                                    ref={imgRef}
-                                  />
-                                  <img
-                                    src={IconDownGray}
-                                    alt="icon-down"
-                                    style={{ position: 'absolute', right: '10px', top: '10px' }}
-                                    onClick={() => handleDownloadImage(src)}
-                                  />
-                                </div>
-                              ) : null,
-                          }}
-                        >
-                          {item.message}
-                        </ReactMarkdown>
-                        <span className="streaming"></span>
-                      </>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          img: ({ src, alt }) => (
+                            <Tippy content="Xem chi tiết" interactive placement="top">
+                              <div className="img-download">
+                                <img
+                                  src={!isLoadedImgError ? src : selectedImage}
+                                  alt={alt}
+                                  style={{
+                                    width: '160px',
+                                    height: '160px',
+                                    objectFit: 'cover',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                  }}
+                                  onClick={() => handleImageClick(src as string)}
+                                  onError={handleImageError}
+                                  ref={imgRef}
+                                />
+                              </div>
+                            </Tippy>
+                          ),
+                        }}
+                      >
+                        {item.message}
+                      </ReactMarkdown>
                     )}
-
-                    {hasLink && hasCode && (
+                    {hasLink && (
                       <p
                         className="item-text-chat"
                         dangerouslySetInnerHTML={{
@@ -1227,30 +1240,7 @@ function MainScreen() {
                         }}
                       ></p>
                     )}
-                    {hasLink && !hasCode && !hasFootnotesRef.current && (
-                      <p
-                        className="item-text-chat"
-                        dangerouslySetInnerHTML={{
-                          __html: sanitizedHtmlLink as any,
-                        }}
-                      ></p>
-                    )}
-
-                    {hasCode &&
-                      hasMath &&
-                      arr.map((latex) => {
-                        if (latex.type == 'html')
-                          return (
-                            <p
-                              className="item-text-chat"
-                              dangerouslySetInnerHTML={{
-                                __html: DOMPurify.sanitize(latex.content + IconStreaming),
-                              }}
-                            ></p>
-                          );
-                        else return <InlineMath math={latex.content} />;
-                      })}
-                    {(hasCode || hasMarkdown) && !hasLink && !hasMath ? (
+                    {hasCode || hasMarkdown ? (
                       <p
                         className="item-text-chat"
                         dangerouslySetInnerHTML={{
@@ -1260,39 +1250,60 @@ function MainScreen() {
                     ) : null}
 
                     {hasMath &&
-                      !hasCode &&
-                      arr.map((latex) => {
+                      listLatex.map((latex) => {
                         if (latex.type == 'html')
                           return (
                             <p
                               className="item-text-chat"
                               dangerouslySetInnerHTML={{
-                                __html: DOMPurify.sanitize(latex.content + IconStreaming),
+                                __html:
+                                  DOMPurify.sanitize(latex.content) +
+                                  '<span class="streaming" style="width: 11px; display: inline-block; height: 3px; background: #89a357;box-shadow: 0px 0px 4px 0px #5fff51;animation: blink 0.5s infinite;"></span>',
                               }}
                             ></p>
                           );
                         else return <InlineMath math={latex.content} />;
                       })}
-
-                    {hasFootnotesRef.current && (
+                    {/* {hasFoot && (
                       <p className="item-text-chat" style={{ display: 'inline' }}>
-                        <ReactMarkdown children={result} remarkPlugins={[remarkGfm, remarkKeepFootnotes]} />
+                        <ReactMarkdown
+                          children={item.message.replace(/(?<!\[)\^(\d+)(?!\])/g, '[$&]').replace(/(\d+)\./g, '[^$1]:')}
+                          remarkPlugins={[remarkGfm]}
+                        />
                         <span className="streaming"></span>
                       </p>
-                    )}
+                    )} */}
 
-                    {!hasLink && !hasImage && !hasCode && !hasMath && !hasMarkdown && !hasFootnotesRef.current ? (
+                    {!hasLink && !hasImage && !hasCode && !hasMath && !hasMarkdown && !hasFoot ? (
                       item.role === 'User' ? (
                         <p className="item-text-chat">{item.message}</p>
                       ) : (
+                        // <MessageComponent message={item.message} />
                         <p
                           className="item-text-chat"
                           dangerouslySetInnerHTML={{
-                            __html: DOMPurify.sanitize(marked(item.message + IconStreaming) as any),
+                            __html: marked(
+                              item.message +
+                                '<span class="streaming" style="width: 11px; display: inline-block; height: 3px; background: #89a357;box-shadow: 0px 0px 4px 0px #5fff51;animation: blink 0.5s infinite;"></span>',
+                            ) as any,
                           }}
                         ></p>
                       )
                     ) : null}
+                    {/* <p
+                      className="item-text-chat"
+                      dangerouslySetInnerHTML={{
+                        __html: markdownToHTML(`
+Nội dung có chú thích^1 và thêm một chú thích nữa^2.
+
+---
+
+^1. Đây là nội dung chú thích 1.
+^2. Đây là nội dung chú thích 2.
+`),
+                      }}
+                    ></p> */}
+                    {/* <MyComponent /> */}
 
                     {inputClass === 'item-chat' &&
                       hoverFeeback &&
@@ -1303,8 +1314,8 @@ function MainScreen() {
                           sx={{
                             display: hoverFeeback.display,
                             padding: '4px',
-                            width: '88px',
-                            height: '32px',
+                            width: '78px',
+                            height: '22px',
                             border: '1px solid rgba(255, 255, 255, 0.12)',
                             borderRadius: '4px',
                             backgroundColor: '#3D3D43',
@@ -1315,7 +1326,7 @@ function MainScreen() {
                           }}
                         >
                           <Tippy
-                            content={copiedMessage[item.message_id as string] ? 'Copied' : 'Copy'}
+                            content={copiedMessage[item.message_id] ? 'Copied' : 'Copy'}
                             interactive
                             placement="bottom"
                           >
@@ -1323,7 +1334,7 @@ function MainScreen() {
                               sx={{ padding: 0 }}
                               onClick={() => handleCopy(item.message_id as string, index)}
                             >
-                              {copiedMessage[item.message_id as string] ? (
+                              {copiedMessage[item.message_id] ? (
                                 <img src={IconPressed} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
                               ) : (
                                 <img src={IconCopy} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
@@ -1385,7 +1396,9 @@ function MainScreen() {
             </p>
           </div>
         )}
-        {actionMess === 'WAIT' && messageStatus?.msg_type === 'user' ? (
+        {actionMess === 'WAIT' &&
+        messageStatus?.msg_type === 'user' &&
+        JSON.parse(localStorage.getItem('answer_bot') || '""') === 'no_answer' ? (
           <p className="typing-text">
             <span className="cursor"></span>
           </p>
@@ -1404,7 +1417,6 @@ function MainScreen() {
               onPaste={handlePaste}
               onKeyDown={handleKeyDown}
               // onBlur={handleBlur}
-              onFocus={handleFocus}
             />
 
             <Tippy content={actionMess === 'WAIT' ? 'Dừng' : 'Gửi'} interactive placement="top">
@@ -1415,7 +1427,7 @@ function MainScreen() {
               ) : (
                 <button
                   className={actionMess === 'WAIT' || !textValue.trim() ? 'disable-button' : ''}
-                  disabled={actionMess === 'WAIT' || !textValue.trim()}
+                  // disabled={actionMess === 'WAIT' || !textValue.trim()}
                   id="send-text"
                   onClick={sendMessages}
                 >
@@ -1435,8 +1447,8 @@ function MainScreen() {
           title="Đổi tên"
           initialInputValue={detailHis.title}
           isEditingTitle
-          widthBox="400px"
-          heightBox="204px"
+          widthBox="352px"
+          heightBox="172px"
           isLoadingSave={isSaving}
           onClose={() => {
             setIsEditDetail(false);
@@ -1447,7 +1459,7 @@ function MainScreen() {
       {toastInfo && (
         <ToastNotification
           height={feebackResponse ? 56 : 40}
-          width={feebackResponse ? 351 : 375}
+          width={feebackResponse ? 351 : 288}
           icon={feebackResponse ? AlertIcon : ErrorIcon}
           bg={feebackResponse ? '#C95859' : '#303036'}
           open={toastInfo}
@@ -1455,7 +1467,7 @@ function MainScreen() {
             feebackResponse
               ? 'Đánh giá phản hồi chưa được ghi nhận, vui lòng thử lại'
               : errorMessage.length
-                ? 'Hệ thống hiện tại chưa hỗ trợ định dạng này'
+                ? 'Hệ thống hiện tại chưa hỗ trợ định dạng [định dạng nhập/paste]'
                 : 'Đổi tên thất bại'
           }
           handleClose={() => {
@@ -1465,78 +1477,78 @@ function MainScreen() {
         />
       )}
 
-      {selectedImage && (
-        <Modal
-          open={openImageModal}
-          onClose={handleCloseModal}
-          aria-labelledby="modal-modal-title"
-          aria-describedby="modal-modal-description"
+      {/* Image Modal */}
+      <Modal
+        open={openImageModal}
+        onClose={handleCloseModal}
+        aria-labelledby="modal-modal-title"
+        aria-describedby="modal-modal-description"
+      >
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(0, 0, 0, 0.88)',
+            // backgroundColor: 'white',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
         >
           <Box
             sx={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              width: '100vw',
-              height: '100vh',
-              backgroundColor: 'rgba(0, 0, 0, 0.88)',
+              position: 'relative',
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
+              width: '100%',
+              height: '100%',
             }}
           >
+            <img
+              src={selectedImage}
+              alt="Full Size"
+              style={{
+                width: `${leftOffset.width}`,
+                height: `${leftOffset.heigth}`,
+                objectFit: 'contain',
+                position: 'absolute',
+                backgroundRepeat: 'no-repeat',
+              }}
+            />
             <Box
               sx={{
-                position: 'relative',
+                position: 'absolute',
+                top: '91px',
+                left:
+                  window.innerWidth > (imgRef.current?.naturalWidth || 0)
+                    ? Math.abs(window.innerWidth - (imgRef.current?.naturalWidth || 0)) / 2
+                    : 0,
+                right:
+                  window.innerWidth > (imgRef.current?.naturalWidth || 0)
+                    ? Math.abs(window.innerWidth - (imgRef.current?.naturalWidth || 0)) / 2
+                    : 0,
                 display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                width: '100%',
-                height: '100%',
+                justifyContent: 'space-between',
+                padding: '0 16px',
               }}
             >
-              <img
-                src={selectedImage}
-                alt="Full Size"
-                style={{
-                  width: `${leftOffset.width}`,
-                  height: `${leftOffset.heigth}`,
-                  objectFit: 'contain',
-                  position: 'absolute',
-                  backgroundRepeat: 'no-repeat',
-                }}
-              />
-              <Box
-                sx={{
-                  position: 'absolute',
-                  top: '91px',
-                  left:
-                    window.innerWidth > (imgRef.current?.naturalWidth || 0)
-                      ? Math.abs(window.innerWidth - (imgRef.current?.naturalWidth || 0)) / 2
-                      : 0,
-                  right:
-                    window.innerWidth > (imgRef.current?.naturalWidth || 0)
-                      ? Math.abs(window.innerWidth - (imgRef.current?.naturalWidth || 0)) / 2
-                      : 0,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  padding: '0 16px',
-                }}
+              <IconButton onClick={handleCloseModal} style={{ background: '#494950', height: '40px', width: '40px' }}>
+                <img src={IconClose} alt="icon-close" />
+              </IconButton>
+              <IconButton
+                onClick={() => handleDownloadImage()}
+                style={{ background: '#494950', height: '40px', width: '40px' }}
               >
-                <IconButton onClick={handleCloseModal} style={{ background: '#494950', height: '40px', width: '40px' }}>
-                  <img src={IconClose} alt="icon-close" />
-                </IconButton>
-                <IconButton
-                  onClick={() => handleDownloadImage()}
-                  style={{ background: '#494950', height: '40px', width: '40px' }}
-                >
-                  <img src={IconDownload} alt="icon-download" />
-                </IconButton>
-              </Box>
+                <img src={IconDownload} alt="icon-download" />
+              </IconButton>
             </Box>
           </Box>
-        </Modal>
-      )}
+        </Box>
+      </Modal>
     </div>
   );
 }
