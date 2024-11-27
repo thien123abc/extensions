@@ -226,7 +226,6 @@ function MainScreen() {
       }
     } catch (error) {
       console.log('lỗi ko');
-      setActionMess('WAIT');
     }
   };
 
