@@ -365,12 +365,11 @@ function MainScreen() {
             !isStopAnswerRef.current &&
             JSON.parse(localStorage.getItem('stop_bot') || '""') === 'false'
           ) {
-            setTimeout(() => getListData(id), 1000); /////////
+            setTimeout(() => getListData(id), 100); /////////
           } else {
-            localStorage.setItem(
-              'status_bot',
-              JSON.stringify([...filterLocalStatusBot, { converId: findLocalStatusBot.converId }]),
-            );
+            delete findLocalStatusBot.sending_question;
+            delete findLocalStatusBot.exit_while_sending;
+            localStorage.setItem('status_bot', JSON.stringify([...filterLocalStatusBot, findLocalStatusBot]));
             localStorage.setItem(
               'answer_bot',
               JSON.stringify([
