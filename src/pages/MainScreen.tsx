@@ -262,6 +262,7 @@ function MainScreen() {
       if (dataMessagesApi.length) {
         parentMsgIdRef.current = dataMessagesApi[0]?.message_id;
       }
+      console.log('transformedMessages', transformedMessages);
 
       setMessages(transformedMessages);
       scrollToBottom();
@@ -321,8 +322,7 @@ function MainScreen() {
           const filterLocalAnswerBot = JSON.parse(localStorage.getItem('answer_bot') || '[]').filter(
             (item: any) => item.converId !== localStorage.getItem('currentConversationIdLocal'),
           );
-          console.log('find1', findLocalStatusBot);
-          console.log('find2', findLocalAnswerBot);
+
           if (findLocalStatusBot) {
             delete findLocalStatusBot.exit_while_sending;
             localStorage.setItem('status_bot', JSON.stringify([...filterLocalStatusBot, findLocalStatusBot]));
@@ -331,6 +331,8 @@ function MainScreen() {
             findLocalAnswerBot.type_answer = 'generating_answer';
             localStorage.setItem('answer_bot', JSON.stringify([...filterLocalAnswerBot, findLocalAnswerBot]));
           }
+          console.log('find1notdone', findLocalStatusBot);
+          console.log('find2notdone', findLocalAnswerBot);
           if (
             messages.length > 0 &&
             messages[messages.length - 1].type == 'text' &&
@@ -369,16 +371,13 @@ function MainScreen() {
           } else {
             delete findLocalStatusBot.sending_question;
             delete findLocalStatusBot.exit_while_sending;
+            findLocalAnswerBot.type_answer = 'no_answer';
             localStorage.setItem('status_bot', JSON.stringify([...filterLocalStatusBot, findLocalStatusBot]));
-            localStorage.setItem(
-              'answer_bot',
-              JSON.stringify([
-                ...filterLocalAnswerBot,
-                { converId: findLocalAnswerBot.converId, type_answer: 'no_answer' },
-              ]),
-            );
+            localStorage.setItem('answer_bot', JSON.stringify([...filterLocalAnswerBot, findLocalAnswerBot]));
             console.log('đã chạy xong2');
-            setForceRenderValue((prev) => prev + 1);
+            console.log('find1yesdone', findLocalStatusBot);
+            console.log('find2yesdone', findLocalAnswerBot);
+            // setForceRenderValue((prev) => prev + 1);
           }
         }
       } catch (error) {
@@ -461,35 +460,31 @@ function MainScreen() {
       if (messages.length <= 1) {
         conversation_id = await createConversation(textValue, 'QA', null);
 
-        const converIdLocal = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
+        const findStatusBotLocal = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
           (item: any) => item.converId === conversation_id,
         );
         const filterLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').filter(
           (item: any) => item.converId !== conversation_id,
         );
+
+        const findAnswerBotLocal = JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
+          (item: any) => item.converId === conversation_id,
+        );
         const filterLocalAnswerBot = JSON.parse(localStorage.getItem('answer_bot') || '[]').filter(
           (item: any) => item.converId !== conversation_id,
         );
 
-        if (converIdLocal) {
-          localStorage.setItem(
-            'status_bot',
-            JSON.stringify([
-              ...filterLocalStatusBot,
-              { converId: conversation_id, sending_question: 'sending_question' },
-            ]),
-          );
-          localStorage.setItem(
-            'answer_bot',
-            JSON.stringify([...filterLocalAnswerBot, { converId: conversation_id, type_answer: 'no_answer' }]),
-          );
+        if (findStatusBotLocal) {
+          delete findStatusBotLocal.exit_while_sending;
+          findStatusBotLocal.sending_question = 'sending_question';
+          localStorage.setItem('status_bot', JSON.stringify([...filterLocalStatusBot, findStatusBotLocal]));
+          findAnswerBotLocal.type_answer = 'no_answer';
+          localStorage.setItem('answer_bot', JSON.stringify([...filterLocalAnswerBot, findAnswerBotLocal]));
         } else {
-          const dataStatusBotLocal = JSON.parse(localStorage.getItem('status_bot') || '[]');
-          const dataTypeAnswer = JSON.parse(localStorage.getItem('answer_bot') || '[]');
-          dataStatusBotLocal.push({ converId: conversation_id, sending_question: 'sending_question' });
-          dataTypeAnswer.push({ converId: conversation_id, type_answer: 'no_answer' });
-          localStorage.setItem('status_bot', JSON.stringify(dataStatusBotLocal));
-          localStorage.setItem('answer_bot', JSON.stringify(dataTypeAnswer));
+          filterLocalStatusBot.push({ converId: conversation_id, sending_question: 'sending_question' });
+          filterLocalAnswerBot.push({ converId: conversation_id, type_answer: 'no_answer' });
+          localStorage.setItem('status_bot', JSON.stringify(filterLocalStatusBot));
+          localStorage.setItem('answer_bot', JSON.stringify(filterLocalAnswerBot));
         }
 
         setCurrentConversationID(conversation_id);
@@ -499,37 +494,27 @@ function MainScreen() {
         await saveMessage(msg);
         setForceRenderValue((prev) => prev + 1);
       } else {
-        conversation_id = currentConversationID;
+        conversation_id = localStorage.getItem('currentConversationIdLocal') || currentConversationIdRef.current;
 
-        const converIdLocal = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
+        const findStatusBotLocal = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
           (item: any) => item.converId === conversation_id,
         );
         const filterLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').filter(
           (item: any) => item.converId !== conversation_id,
         );
+        const findAnswerBotLocal = JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
+          (item: any) => item.converId === conversation_id,
+        );
         const filterLocalAnswerBot = JSON.parse(localStorage.getItem('answer_bot') || '[]').filter(
           (item: any) => item.converId !== conversation_id,
         );
 
-        if (converIdLocal) {
-          localStorage.setItem(
-            'status_bot',
-            JSON.stringify([
-              ...filterLocalStatusBot,
-              { converId: conversation_id, sending_question: 'sending_question' },
-            ]),
-          );
-          localStorage.setItem(
-            'answer_bot',
-            JSON.stringify([...filterLocalAnswerBot, { converId: conversation_id, type_answer: 'no_answer' }]),
-          );
-        } else {
-          const dataStatusBotLocal = JSON.parse(localStorage.getItem('status_bot') || '[]');
-          const dataTypeAnswer = JSON.parse(localStorage.getItem('answer_bot') || '[]');
-          dataStatusBotLocal.push({ converId: conversation_id, sending_question: 'sending_question' });
-          dataTypeAnswer.push({ converId: conversation_id, type_answer: 'no_answer' });
-          localStorage.setItem('status_bot', JSON.stringify(dataStatusBotLocal));
-          localStorage.setItem('answer_bot', JSON.stringify(dataTypeAnswer));
+        if (findStatusBotLocal) {
+          delete findStatusBotLocal.exit_while_sending;
+          findStatusBotLocal.sending_question = 'sending_question';
+          localStorage.setItem('status_bot', JSON.stringify([...filterLocalStatusBot, findStatusBotLocal]));
+          findAnswerBotLocal.type_answer = 'no_answer';
+          localStorage.setItem('answer_bot', JSON.stringify([...filterLocalAnswerBot, findAnswerBotLocal]));
         }
 
         await saveMessage(msg);
@@ -821,7 +806,10 @@ function MainScreen() {
       if (
         actionMess === 'WAIT' &&
         findLocalStatusBot &&
-        findLocalStatusBot.exit_while_sending !== 'exit_while_sending'
+        !findLocalStatusBot.exit_while_sending &&
+        findLocalStatusBot.exit_while_sending !== 'exit_while_sending' &&
+        messages?.length % 2 === 0 &&
+        messages[messages.length - 1]?.role !== 'User'
         // &&JSON.parse(localStorage.getItem('stop_bot') || '""') === 'false'
       ) {
         console.log('xóa ko', index);
