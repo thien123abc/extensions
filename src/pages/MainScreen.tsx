@@ -58,12 +58,6 @@ import {
   regexMath,
 } from '../utils/constantRegex';
 import remarkKeepFootnotes from '../utils/remarkKeepFootnotes';
-import {
-  BotRunStatusEnum,
-  setBotRunDoneStatus,
-  setBotRunExitSendingStatus,
-  setBotRunSendingStatus,
-} from '../store/chatSlice';
 
 interface IVsocStoredMessageStore extends IVsocStoredMessage {
   isStored?: boolean;
@@ -124,19 +118,19 @@ function MainScreen() {
       return { msg_id: '', msg_type: 'bot', task_id: '' };
     } else return { msg_id: '', msg_type: 'init', task_id: '' };
   });
-  console.log('messageStatus', messageStatus);
 
   const isStopAnswerRef = useRef(false);
   const messageItemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const feedbackRef = useRef<HTMLDivElement | null>();
   const msgRef = useRef<string>('');
-  const imgRef = useRef<HTMLImageElement | null>(null);
+  const imgRefs = useRef<(HTMLImageElement | null)[]>([]);
   const pRef = useRef<HTMLParagraphElement | null>(null);
   const parentMsgIdRef = useRef<string | null>(null);
   const currentConversationIdRef = useRef<string>('');
 
-  const isBotRunStatusRedux = useSelector((state: RootState) => state.botStatus.isBotRunStatus);
-  const dispatch: AppDispatch = useDispatch();
+  // const isBotRunStatusRedux = useSelector((state: RootState) => state.botStatus.isBotRunStatus);
+  // const isChatBlockCode = useSelector((state: RootState) => state.botStatus.isChatBlockCode);
+  // const dispatch: AppDispatch = useDispatch();
 
   chrome?.runtime?.onMessage?.addListener((message: IChromeMessage) => {
     if (message && message.type === 'text_from_monitor') {
@@ -234,13 +228,12 @@ function MainScreen() {
       conversation_id: id,
       limit: 30,
     });
+    console.log('listMessages', listMessages);
 
     const dataMessagesApi = (await getMessagesApiAsync({ conversation_id: id, limit: 30 }))
       .result as IVsocGetMessageApiArgs[];
     console.log('dataMessagesApi', dataMessagesApi);
-
     if (listMessages.result) {
-      console.log('listMsg', listMessages?.result);
       const filterListMsg = listMessages.result.filter((item) => !(item.message === ''));
       const _list: IVsocStoredMessageStore[] = [];
       for (const item of filterListMsg) {
@@ -262,10 +255,10 @@ function MainScreen() {
       });
 
       transformedMessages.reverse();
+      console.log('transformedMessages', transformedMessages);
       if (dataMessagesApi.length) {
         parentMsgIdRef.current = dataMessagesApi[0]?.message_id;
       }
-      console.log('transformedMessages', transformedMessages);
 
       setMessages(transformedMessages);
       scrollToBottom();
@@ -276,10 +269,13 @@ function MainScreen() {
         }, 1000);
       } else {
         setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          last.action = 'DONE';
-          const filter = prev.slice(0, prev.length - 1);
-          return [...filter, last];
+          if (prev.length > 0) {
+            const last = prev[prev.length - 1];
+            if (last) last.action = 'DONE';
+            const filter = prev.slice(0, prev.length - 1);
+            return [...filter, last];
+          }
+          return [...prev];
         });
         setActionMess('');
       }
@@ -311,10 +307,18 @@ function MainScreen() {
     }
   }, [stopGenerate]);
 
+  console.log('stopGenerate', stopGenerate);
+
   useEffect(() => {
     const id = setTimeout(() => {
       if (messages.length > 0) {
-        if (messages[messages.length - 1]?.role === 'User') {
+        if (
+          messages[messages.length - 1]?.role === 'User' &&
+          !stopGenerate &&
+          JSON.parse(localStorage.getItem('stop_bot') || '[]')?.find(
+            (item: any) => item?.converId === localStorage.getItem('currentConversationIdLocal'),
+          )?.is_stop === 'false'
+        ) {
           console.log('quá 20s nha');
           timeStop.current = true;
           setMessages((prev) => {
@@ -323,28 +327,68 @@ function MainScreen() {
             const filter = prev.slice(0, prev.length - 1);
             return [...filter, last];
           });
-          const latestMsg: IVsocStoredMessageStore = {
-            action: 'DONE',
-            conversation_id: localStorage.getItem('currentConversationIdLocal') || currentConversationIdRef.current,
-            feedback: null,
-            isStored: true,
-            message: '',
-            message_html: '',
-            role: 'Customer Support',
-            type: 'break_paragraph',
-            time: new Date().getTime(),
-            // message_id: JSON.parse(localStorage.getItem('lastestMsgId') || ''),
-          };
+          // const latestMsg: IVsocStoredMessageStore = {
+          //   action: 'DONE',
+          //   conversation_id: localStorage.getItem('currentConversationIdLocal') || currentConversationIdRef.current,
+          //   feedback: null,
+          //   isStored: true,
+          //   message: '',
+          //   message_html: '',
+          //   role: 'Customer Support',
+          //   type: 'break_paragraph',
+          //   time: new Date().getTime(),
+          //   // message_id: JSON.parse(localStorage.getItem('lastestMsgId') || ''),
+          // };
 
-          saveMessage(latestMsg);
+          // saveMessage(latestMsg);
         } else {
           console.log('trước 20s');
           timeStop.current = false;
+          setForceRenderValue((prev) => prev + 1);
         }
       }
-    }, 10000);
+    }, 20000);
     return () => {
       clearTimeout(id);
+    };
+  }, [actionMess, msgRef.current, forceRenderValue]);
+
+  const lastMessageTime = useRef(0); // Thời gian của tin nhắn cuối cùng được trả về
+  const lastMessage = useRef(''); // Lưu giữ nội dung của tin nhắn cuối cùng
+
+  useEffect(() => {
+    // Kiểm tra nếu dữ liệu trả về là một giá trị duy nhất và không thay đổi sau 10s
+
+    const checkDataChange = setInterval(() => {
+      if (actionMess === 'WAIT') {
+        if (messages.length > 0) {
+          const lastMsg = messages[messages.length - 1];
+          if (lastMsg?.role !== 'User') {
+            // Nếu tin nhắn cuối cùng không thay đổi trong 10s
+            if (lastMessage.current === lastMsg.message) {
+              if (Date.now() - lastMessageTime.current >= 20000) {
+                console.log('Dữ liệu không thay đổi trong 10s, hiển thị nút pause');
+                timeStop.current = true;
+              }
+            } else {
+              // Nếu tin nhắn đã thay đổi, cập nhật lại thời gian và giá trị tin nhắn
+              lastMessage.current = lastMsg.message;
+              lastMessageTime.current = Date.now();
+              console.log('đã thay đổi trong 20s');
+
+              // timeStop.current = false;
+            }
+          }
+        }
+      }
+    }, 1000); // Kiểm tra mỗi giây
+
+    if (actionMess === 'DONE') {
+      clearInterval(checkDataChange);
+    }
+
+    return () => {
+      clearInterval(checkDataChange);
     };
   }, [actionMess, msgRef.current, forceRenderValue]);
 
@@ -365,12 +409,13 @@ function MainScreen() {
       )?.is_stop === 'false'
     ) {
       try {
-        console.log('vào ko');
         const data = await api.message.getNextAsync({
           conversation_id: id,
         });
 
         if (data.result) {
+          console.log('data.result', data.result);
+
           parentMsgIdRef.current = data.result.message_id as string;
           if (!data.result.message && data.result.action == 'WAIT') {
             setTimeout(() => getListData(id), 1000);
@@ -379,11 +424,13 @@ function MainScreen() {
 
           if (data.result.action == 'DONE') {
             // xử lý khi bot trả lời xong
+            // ...
             setStopGenerate(true);
             isStopAnswerRef.current = false;
-            console.log('đã chạy xong1');
           }
+
           await saveMessage(data.result);
+
           const findLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
             (item: any) => item.converId === localStorage.getItem('currentConversationIdLocal'),
           );
@@ -406,8 +453,7 @@ function MainScreen() {
             findLocalAnswerBot.type_answer = 'generating_answer';
             localStorage.setItem('answer_bot', JSON.stringify([...filterLocalAnswerBot, findLocalAnswerBot]));
           }
-          console.log('find1notdone', findLocalStatusBot);
-          console.log('find2notdone', findLocalAnswerBot);
+
           if (
             messages.length > 0 &&
             messages[messages.length - 1].type == 'text' &&
@@ -444,7 +490,7 @@ function MainScreen() {
               (item: any) => item?.converId === localStorage.getItem('currentConversationIdLocal'),
             )?.is_stop === 'false'
           ) {
-            setTimeout(() => getListData(id), 30); /////////
+            setTimeout(() => getListData(id), 30);
           } else {
             timeStop.current = false;
 
@@ -454,25 +500,18 @@ function MainScreen() {
             localStorage.setItem('status_bot', JSON.stringify([...filterLocalStatusBot, findLocalStatusBot]));
             localStorage.setItem('answer_bot', JSON.stringify([...filterLocalAnswerBot, findLocalAnswerBot]));
 
-            const findLocalStopBot = JSON.parse(localStorage.getItem('stop_bot') || '[]')?.find(
-              (item: any) => item?.converId === localStorage.getItem('currentConversationIdLocal'),
-            );
-            const filterLocalStopBot = JSON.parse(localStorage.getItem('stop_bot') || '[]')?.filter(
-              (item: any) => item?.converId !== localStorage.getItem('currentConversationIdLocal'),
-            );
-            findLocalStopBot.is_stop = 'false';
-            localStorage.setItem('stop_bot', JSON.stringify([...filterLocalStopBot, findLocalStopBot]));
             console.log('đã chạy xong2');
-            console.log('find1yesdone', findLocalStatusBot);
-            console.log('find2yesdone', findLocalAnswerBot);
-            // setForceRenderValue((prev) => prev + 1);
+            // console.log('find1yesdone', findLocalStatusBot);
+            // console.log('find2yesdone', findLocalAnswerBot);
+            setForceRenderValue((prev) => prev + 1);
           }
         }
       } catch (error) {
         setActionMess('');
       }
     } else {
-      console.log('sao chạy vào đây');
+      console.log('đã xong');
+
       const findLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
         (item: any) => item.converId === localStorage.getItem('currentConversationIdLocal'),
       );
@@ -491,15 +530,6 @@ function MainScreen() {
       findLocalAnswerBot.type_answer = 'no_answer';
       localStorage.setItem('status_bot', JSON.stringify([...filterLocalStatusBot, findLocalStatusBot]));
       localStorage.setItem('answer_bot', JSON.stringify([...filterLocalAnswerBot, findLocalAnswerBot]));
-
-      const findLocalStopBot = JSON.parse(localStorage.getItem('stop_bot') || '[]')?.find(
-        (item: any) => item?.converId === localStorage.getItem('currentConversationIdLocal'),
-      );
-      const filterLocalStopBot = JSON.parse(localStorage.getItem('stop_bot') || '[]')?.filter(
-        (item: any) => item?.converId !== localStorage.getItem('currentConversationIdLocal'),
-      );
-      findLocalStopBot.is_stop = 'false';
-      localStorage.setItem('stop_bot', JSON.stringify([...filterLocalStopBot, findLocalStopBot]));
 
       const latestMsg: IVsocStoredMessageStore = {
         action: 'DONE',
@@ -548,13 +578,10 @@ function MainScreen() {
       if (!textValue.trim()) {
         return;
       }
-
       setTextValue('');
       setActionMess('WAIT');
       setStopGenerate(false);
       isStopAnswerRef.current = false;
-
-      // localStorage.setItem('stop_bot', JSON.stringify('false'));
       setMessageStatus({ msg_id: '', msg_type: 'init', task_id: '' });
       let conversation_id: string;
       let _textValue: string = '';
@@ -623,7 +650,6 @@ function MainScreen() {
         setForceRenderValue((prev) => prev + 1);
       } else {
         conversation_id = localStorage.getItem('currentConversationIdLocal') || currentConversationIdRef.current;
-
         const findStatusBotLocal = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
           (item: any) => item.converId === conversation_id,
         );
@@ -660,7 +686,6 @@ function MainScreen() {
           parentMsgId: parentMsgIdRef.current,
         });
       }
-
       await getListData(conversation_id);
       // setTimeout(async () => {
       //   await getListData(conversation_id);
@@ -709,7 +734,25 @@ function MainScreen() {
     });
     setStopGenerate(true);
 
-    await stopNextMessageAsync({ conversation_id: currentConversationIdRef.current });
+    await stopNextMessageAsync({
+      conversation_id: localStorage.getItem('currentConversationIdLocal') || currentConversationIdRef.current,
+    });
+
+    const latestMsg: IVsocStoredMessageStore = {
+      action: 'DONE',
+      conversation_id: localStorage.getItem('currentConversationIdLocal') || currentConversationIdRef.current,
+      feedback: null,
+      isStored: true,
+      message: '',
+      message_html: '',
+      role: 'Customer Support',
+      type: 'break_paragraph',
+      time: new Date().getTime(),
+      // message_id: JSON.parse(localStorage.getItem('lastestMsgId') || ''),
+    };
+
+    await saveMessage(latestMsg);
+
     if (messageStatus?.task_id) {
       await stopGenarateAsync(messageStatus.task_id);
     }
@@ -739,10 +782,13 @@ function MainScreen() {
         message_id,
         rating,
       });
-      const feedbackMsg = messages.find((msg) => msg.message_id === message_id) as IVsocStoredMessageStore;
+      const feedbackMsg = messages.find(
+        (msg) => msg.message_id === message_id && msg.role !== 'User',
+      ) as IVsocStoredMessageStore;
       if (rating === null) feedbackMsg.feedback = null;
       else feedbackMsg.feedback = { rating };
-      const findFeedbackMsg = messages.findIndex((msg) => msg.message_id === message_id);
+      const findFeedbackMsg = messages.findIndex((msg) => msg.message_id === message_id && msg.role !== 'User');
+
       if (findFeedbackMsg !== -1) messages.splice(findFeedbackMsg, 1, feedbackMsg);
       setMessages([...messages]);
       setFeedbackResponse(false);
@@ -825,16 +871,12 @@ function MainScreen() {
     }
   };
   const handleBlur = () => {
-    console.log('blur');
-
     const area = document.querySelector('.container__cursor') as HTMLSpanElement;
     if (area) area.style.display = 'none';
     const mirror = document.querySelector('.container__mirror') as HTMLDivElement;
     if (mirror) mirror.style.display = 'none';
   };
   const handleFocus = () => {
-    console.log('focus');
-
     const area = document.querySelector('.container__cursor') as HTMLSpanElement;
     if (area) area.style.display = 'block';
     const mirror = document.querySelector('.container__mirror') as HTMLDivElement;
@@ -894,14 +936,13 @@ function MainScreen() {
         const parent = table.parentElement;
 
         if (parent && parent.classList.contains('div-table')) {
-          console.log('Table đã có thẻ cha với class "div-table".');
+          // console.log('Table đã có thẻ cha với class "div-table".');
         } else {
           const wrapper = document.createElement('div');
           wrapper.classList.add('div-table');
           if (table.parentNode) {
             table.parentNode.insertBefore(wrapper, table);
             wrapper.appendChild(table);
-            console.log('Đã thêm thẻ cha với class "div-table".');
           }
         }
       }
@@ -911,25 +952,14 @@ function MainScreen() {
   const calculateLeftOffset = () => {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+    let arr = [];
+    arr = imgRefs.current.filter((item) => item) as HTMLImageElement[];
 
-    // const tables = document.querySelectorAll<HTMLTableElement>('.item-chat table');
+    const findImg = arr.find((item) => item.src === selectedImage);
 
-    // tables.forEach((table) => {
-    //   if (table) {
-    //     if (viewportWidth <= 450) {
-    //       table.style.display = 'block';
-    //     } else {
-    //       table.style.removeProperty('display');
-    //     }
-    //   }
-    // });
-
-    if (imgRef.current) {
-      const imgWidth = imgRef.current.naturalWidth;
-      const imgHeight = imgRef.current.naturalHeight;
-      // const offsetWidth = (viewportWidth - imgWidth) / 2;
-      // const offsetHeight = (viewportHeight - imgHeight) / 2;
-      // setLeftOffset({ range: Math.ceil(Math.abs(offsetWidth)), isBigger: offsetHeight >= 182 ? false : true });
+    if (findImg) {
+      const imgWidth = findImg.naturalWidth;
+      const imgHeight = findImg.naturalHeight;
       if (imgWidth > viewportWidth) {
         setLeftOffset((prev) => ({ ...prev, width: '100%' }));
       } else setLeftOffset((prev) => ({ ...prev, width: `${imgWidth}px` }));
@@ -961,14 +991,16 @@ function MainScreen() {
     const streamingElementsUser = document.querySelectorAll('.user-item-chat .streaming');
     const streamingElementsBot = document.querySelectorAll('.item-text-chat .streaming');
     const streamingElementsAll = document.querySelectorAll('.item-chat .streaming');
-    // console.log('streamingElementsBot', streamingElementsBot);
+    console.log('all', streamingElementsAll);
 
     const findLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
       (item: any) => item.converId === currentConversationIdRef.current,
     );
 
     if (streamingElementsAll.length && actionMess !== 'WAIT') {
-      streamingElementsAll.forEach((el) => el.remove());
+      streamingElementsAll.forEach((el, index) => {
+        el.remove();
+      });
     }
     streamingElementsUser.forEach((el) => el.remove());
     streamingElementsBot.forEach((el, index) => {
@@ -978,18 +1010,13 @@ function MainScreen() {
         findLocalStatusBot &&
         !findLocalStatusBot.exit_while_sending &&
         findLocalStatusBot.exit_while_sending !== 'exit_while_sending'
-        //  &&messages.length % 2 === 0
       ) {
-        console.log('xóa ko', index);
-
         index !== streamingElementsBot.length - 1 && el.remove();
       } else {
         el.remove();
       }
     });
   }, [msgRef.current, actionMess, forceRenderValue]);
-
-  console.log('action', actionMess);
 
   const isCodeBlockRef = useRef(false);
   useEffect(() => {
@@ -1532,7 +1559,7 @@ function MainScreen() {
                                     }}
                                     onClick={() => handleImageClick(src as string)}
                                     onError={() => handleImageError(src as string)}
-                                    ref={imgRef}
+                                    ref={(el) => (imgRefs.current[index] = el)}
                                   />
                                   <img
                                     src={IconDownGray}
@@ -1567,20 +1594,24 @@ function MainScreen() {
                       ></p>
                     )}
 
-                    {hasCode &&
-                      hasMath &&
-                      arr.map((latex) => {
-                        if (latex.type == 'html')
-                          return (
-                            <p
-                              className="item-text-chat"
-                              dangerouslySetInnerHTML={{
-                                __html: DOMPurify.sanitize(latex.content + IconStreaming),
-                              }}
-                            ></p>
-                          );
-                        else return <InlineMath math={latex.content} />;
-                      })}
+                    {hasCode && hasMath ? (
+                      <>
+                        {arr.map((latex) => {
+                          if (latex.type == 'html')
+                            return (
+                              <p
+                                className="item-text-chat"
+                                dangerouslySetInnerHTML={{
+                                  __html: DOMPurify.sanitize(latex.content),
+                                }}
+                              ></p>
+                            );
+                          else return <InlineMath math={latex.content} />;
+                        })}
+                        {index === messages.length - 1 && actionMess === 'WAIT' && <span className="streaming"></span>}
+                      </>
+                    ) : null}
+
                     {(hasCode || hasMarkdown) && !hasLink && !hasMath ? (
                       <p
                         className="item-text-chat"
@@ -1590,20 +1621,23 @@ function MainScreen() {
                       ></p>
                     ) : null}
 
-                    {hasMath &&
-                      !hasCode &&
-                      arr.map((latex) => {
-                        if (latex.type == 'html')
-                          return (
-                            <p
-                              className="item-text-chat"
-                              dangerouslySetInnerHTML={{
-                                __html: DOMPurify.sanitize(latex.content) + IconStreaming,
-                              }}
-                            ></p>
-                          );
-                        else return <InlineMath math={latex.content} />;
-                      })}
+                    {hasMath && !hasCode ? (
+                      <>
+                        {arr.map((latex) => {
+                          if (latex.type == 'html')
+                            return (
+                              <p
+                                className="item-text-chat"
+                                dangerouslySetInnerHTML={{
+                                  __html: DOMPurify.sanitize(latex.content),
+                                }}
+                              ></p>
+                            );
+                          else return <InlineMath math={latex.content} />;
+                        })}
+                        {index === messages.length - 1 && actionMess === 'WAIT' && <span className="streaming"></span>}
+                      </>
+                    ) : null}
 
                     {hasFootnotesRef.current && (
                       <p className="item-text-chat" style={{ display: 'inline' }}>
@@ -1717,6 +1751,8 @@ function MainScreen() {
           </div>
         )}
         {actionMess === 'WAIT' &&
+        messages.length > 0 &&
+        messages[messages.length - 1]?.role === 'User' &&
         ((messageStatus?.msg_type === 'user' &&
           JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
             (itemBot: any) => itemBot.converId === currentConversationIdRef.current,
@@ -1747,14 +1783,14 @@ function MainScreen() {
             />
 
             <Tippy content={actionMess === 'WAIT' ? 'Dừng' : 'Gửi'} interactive placement="top">
-              {actionMess === 'WAIT' &&
-              JSON.parse(localStorage.getItem('answer_bot') || '[]')?.find(
-                (bot: any) => bot?.converId === currentConversationIdRef.current,
-              )?.type_answer === 'generating_answer' &&
-              JSON.parse(localStorage.getItem('stop_bot') || '[]')?.find(
-                (bot: any) => bot?.converId === currentConversationIdRef.current,
-              )?.is_stop === 'false' ? (
-                // ||timeStop.current
+              {(actionMess === 'WAIT' &&
+                JSON.parse(localStorage.getItem('answer_bot') || '[]')?.find(
+                  (bot: any) => bot?.converId === currentConversationIdRef.current,
+                )?.type_answer === 'generating_answer' &&
+                JSON.parse(localStorage.getItem('stop_bot') || '[]')?.find(
+                  (bot: any) => bot?.converId === currentConversationIdRef.current,
+                )?.is_stop === 'false') ||
+              timeStop.current ? (
                 <button id="send-text" onClick={handleStopGenarate}>
                   <img src={PauseIcon} alt="pause-icon" />
                 </button>
@@ -1856,27 +1892,26 @@ function MainScreen() {
                 sx={{
                   position: 'absolute',
                   top: '91px',
-                  left:
-                    window.innerWidth > (imgRef.current?.naturalWidth || 0)
-                      ? Math.abs(window.innerWidth - (imgRef.current?.naturalWidth || 0)) / 2
-                      : 0,
-                  right:
-                    window.innerWidth > (imgRef.current?.naturalWidth || 0)
-                      ? Math.abs(window.innerWidth - (imgRef.current?.naturalWidth || 0)) / 2
-                      : 0,
+                  // left:
+                  //   window.innerWidth > (imgRef.current?.naturalWidth || 0)
+                  //     ? Math.abs(window.innerWidth - (imgRef.current?.naturalWidth || 0)) / 2
+                  //     : 0,
+                  // right:
+                  //   window.innerWidth > (imgRef.current?.naturalWidth || 0)
+                  //     ? Math.abs(window.innerWidth - (imgRef.current?.naturalWidth || 0)) / 2
+                  //     : 0,
+                  left: '41px',
+                  right: '41px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   padding: '0 16px',
                 }}
               >
-                <IconButton onClick={handleCloseModal} style={{ background: '#494950', height: '40px', width: '40px' }}>
-                  <img src={IconClose} alt="icon-close" />
+                <IconButton onClick={handleCloseModal} style={{ height: '40px', width: '40px' }}>
+                  <img src={IconClose} alt="icon-close" style={{ width: '19px', height: '19px' }} />
                 </IconButton>
-                <IconButton
-                  onClick={() => handleDownloadImage()}
-                  style={{ background: '#494950', height: '40px', width: '40px' }}
-                >
-                  <img src={IconDownload} alt="icon-download" />
+                <IconButton onClick={() => handleDownloadImage()} style={{ height: '40px', width: '40px' }}>
+                  <img src={IconDownload} alt="icon-download" style={{ width: '19px', height: '19px' }} />
                 </IconButton>
               </Box>
             </Box>
