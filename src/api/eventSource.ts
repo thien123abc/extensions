@@ -19,14 +19,12 @@ async function* getAllTextLinesIterator(url: string, options: RequestInit) {
   const reader = response.body.getReader();
   let { value: byteArray, done: readerDone } = await reader.read();
   let chunk = byteArray ? utf8Decoder.decode(byteArray, { stream: true }) : '';
-  console.log('chunk', JSON.stringify(chunk));
 
   const re = /\r\n|\n|\r/gm;
   let startIndex = 0;
 
   for (let i = 0; ; i++) {
     const result = re.exec(chunk);
-    console.log('result' + i + '=>', result);
     if (!result) {
       if (readerDone) {
         break;
@@ -129,7 +127,8 @@ const markDifyResponseEnd = (
     task_id: ids.task_id,
   };
   conversationHub[conversationId].push(msg);
-  localStorage.setItem('lastestMsgId', JSON.stringify(ids.msg_id));
+  console.log('endstop', conversationHub[conversationId]);
+  localStorage.setItem('lastestMsgId', ids.msg_id);
 };
 
 type RoleInfo = {
@@ -172,7 +171,9 @@ const connectToBotAsync = (arg: IVsocCreateConversationArgs | IVsocSendMessageAr
           conversation_id: (arg as IVsocSendMessageArgs).conversation_id ?? '',
           query: arg.text,
           inputs: {},
+          parent_message_id: arg.parentMsgId,
         }),
+        // signal: AbortSignal.timeout(5000),
         headers: {
           Authorization: `Bearer ${bot_token}`,
           'Content-Type': 'application/json',
@@ -180,7 +181,6 @@ const connectToBotAsync = (arg: IVsocCreateConversationArgs | IVsocSendMessageAr
       };
       let index = 0;
       for await (const line of getAllTextLinesIterator(fetchUrl, fetchOptions)) {
-        console.log('line' + index + '=>', line);
         index++;
         const evt = parseDifyMesssage(line);
         if (!evt) continue;
@@ -188,7 +188,6 @@ const connectToBotAsync = (arg: IVsocCreateConversationArgs | IVsocSendMessageAr
           fnReject = undefined;
           conversationId = evt.conversation_id;
           if (!(conversationId in conversationHub)) {
-            console.log('Created conversation ', conversationId);
             conversationHub[conversationId] = [];
           }
           resolve({
@@ -214,7 +213,6 @@ const connectToBotAsync = (arg: IVsocCreateConversationArgs | IVsocSendMessageAr
         };
         ids.msg_id = evt.message_id;
         ids.task_id = evt.task_id as string;
-        console.log('hiện tại=> ', msg);
         conversationHub[conversationId].push(msg);
         roleInfo.lastRoleInMessage = roleInfo.currentRole;
       }
@@ -236,8 +234,49 @@ export const getNextMessageAsync = (arg: IVsocGetNextMessageArgs) => {
     if (!arg.conversation_id || !(arg.conversation_id in conversationHub)) {
       throw new Error(`conversation_id ${arg.conversation_id} is not found`);
     }
-    const queue = conversationHub[arg.conversation_id];
-    let message = queue.shift();
+    // let queue = [];
+    // if (localStorage.getItem('lastestMsgId')) {
+    //   // const n = conversationHub[arg.conversation_id];
+    //   // const id = localStorage.getItem('lastestMsgId');
+    //   // const m = n.filter((item) => item?.message_id === id);
+    //   // console.log('đã tồn tại1', localStorage.getItem('lastestMsgId'));
+    //   // console.log('đã tồn tại2', n[0].message_id);
+
+    //   queue = conversationHub[arg.conversation_id]?.filter(
+    //     (item) => item?.message_id === localStorage.getItem('lastestMsgId'),
+    //   );
+    // } else {
+    //   console.log('mới nhất');
+    //   queue = conversationHub[arg.conversation_id];
+    // }
+
+    // const queue = conversationHub[arg.conversation_id]?.filter(
+    //   (item) => item?.message_id === localStorage.getItem('lastestMsgId'),
+    // );
+
+    // let message = queue.shift();
+    // const arr = [...conversationHub[arg.conversation_id]];
+    // console.log('queue', arr);
+    // Lọc mảng để lấy phần tử có message_id = 1
+    const filteredMessages = conversationHub[arg.conversation_id].filter(
+      (item) => item.message_id === localStorage.getItem('lastestMsgId'),
+    );
+
+    // Kiểm tra nếu mảng lọc có phần tử
+    // if (filteredMessages.length > 0) {
+    // Lấy phần tử đầu tiên trong mảng đã lọc
+    let message = filteredMessages[0];
+
+    // Xóa phần tử này khỏi mảng gốc
+    const indexToRemove = conversationHub[arg.conversation_id].findIndex((item) => item === message);
+    if (indexToRemove !== -1) {
+      conversationHub[arg.conversation_id].splice(indexToRemove, 1); // Xóa phần tử
+    }
+
+    // Trả về phần tử đã lấy
+    //   return message;
+    // }
+
     if (!message)
       message = {
         conversation_id: arg.conversation_id,
@@ -253,12 +292,12 @@ export const getNextMessageAsync = (arg: IVsocGetNextMessageArgs) => {
     });
   });
 };
+
 export const stopNextMessageAsync = (arg: IVsocGetNextMessageArgs) => {
   return new Promise<IVsocApiResult<IVsocGetNextMessageResult>>((resolve) => {
-    if (!arg.conversation_id || !(arg.conversation_id in conversationHub)) {
-      throw new Error(`conversation_id ${arg.conversation_id} is not found`);
-    }
-    conversationHub[arg.conversation_id] = [];
+    console.log('deletestop', conversationHub[arg?.conversation_id]);
+    conversationHub[arg?.conversation_id] = [];
+
     resolve({
       status: 0,
     });
@@ -290,7 +329,6 @@ export const getMessagesApiAsync = async (
       created_at: conv.created_at,
     } as IVsocGetMessageApiArgs;
   });
-  console.log('ok', result);
 
   return {
     status: 0,
@@ -313,7 +351,6 @@ export const feedbackMessageAsync = async (arg: {
     },
   });
   const body = await response.json();
-  console.log('body', body);
 
   return {
     status: 0,
