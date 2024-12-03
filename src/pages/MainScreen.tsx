@@ -96,15 +96,12 @@ function MainScreen() {
     task_id: string;
   }>(() => {
     const currentConversationIdLocal = localStorage.getItem('currentConversationIdLocal');
-    console.log('checkk', currentConversationIdLocal);
-    console.log('checkk2', location.state?.id);
-
     if (currentConversationIdLocal) {
       const local = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
-        (item: any) => item.converId === currentConversationIdLocal,
+        (item: any) => item?.converId === currentConversationIdLocal,
       );
       const isGenerateAnswerLocal = JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
-        (item: any) => item.converId === currentConversationIdLocal,
+        (item: any) => item?.converId === currentConversationIdLocal,
       );
       if (isGenerateAnswerLocal) {
         if (
@@ -228,11 +225,11 @@ function MainScreen() {
       conversation_id: id,
       limit: 30,
     });
-    console.log('listMessages', listMessages);
+    // console.log('listMessages', listMessages);
 
     const dataMessagesApi = (await getMessagesApiAsync({ conversation_id: id, limit: 30 }))
       .result as IVsocGetMessageApiArgs[];
-    console.log('dataMessagesApi', dataMessagesApi);
+    // console.log('dataMessagesApi', dataMessagesApi);
     if (listMessages.result) {
       const filterListMsg = listMessages.result.filter((item) => !(item.message === ''));
       const _list: IVsocStoredMessageStore[] = [];
@@ -255,7 +252,7 @@ function MainScreen() {
       });
 
       transformedMessages.reverse();
-      console.log('transformedMessages', transformedMessages);
+      // console.log('transformedMessages', transformedMessages);
       if (dataMessagesApi.length) {
         parentMsgIdRef.current = dataMessagesApi[0]?.message_id;
       }
@@ -311,43 +308,45 @@ function MainScreen() {
 
   useEffect(() => {
     const id = setTimeout(() => {
-      if (messages.length > 0) {
-        if (
-          messages[messages.length - 1]?.role === 'User' &&
-          !stopGenerate &&
-          JSON.parse(localStorage.getItem('stop_bot') || '[]')?.find(
-            (item: any) => item?.converId === localStorage.getItem('currentConversationIdLocal'),
-          )?.is_stop === 'false'
-        ) {
-          console.log('quá 20s nha');
-          timeStop.current = true;
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            last.action = 'DONE';
-            const filter = prev.slice(0, prev.length - 1);
-            return [...filter, last];
-          });
-          // const latestMsg: IVsocStoredMessageStore = {
-          //   action: 'DONE',
-          //   conversation_id: localStorage.getItem('currentConversationIdLocal') || currentConversationIdRef.current,
-          //   feedback: null,
-          //   isStored: true,
-          //   message: '',
-          //   message_html: '',
-          //   role: 'Customer Support',
-          //   type: 'break_paragraph',
-          //   time: new Date().getTime(),
-          //   // message_id: JSON.parse(localStorage.getItem('lastestMsgId') || ''),
-          // };
+      if (
+        messages.length > 0 &&
+        messages[messages.length - 1]?.role === 'User' &&
+        messages[messages.length - 1]?.action === 'WAIT' &&
+        !stopGenerate &&
+        JSON.parse(localStorage.getItem('stop_bot') || '[]')?.find(
+          (item: any) => item?.converId === localStorage.getItem('currentConversationIdLocal'),
+        )?.is_stop === 'false'
+      ) {
+        console.log('quá 20s nha');
+        timeStop.current = true;
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          last.action = 'DONE';
+          const filter = prev.slice(0, prev.length - 1);
+          return [...filter, last];
+        });
+        // const latestMsg: IVsocStoredMessageStore = {
+        //   action: 'DONE',
+        //   conversation_id: localStorage.getItem('currentConversationIdLocal') || currentConversationIdRef.current,
+        //   feedback: null,
+        //   isStored: true,
+        //   message: '',
+        //   message_html: '',
+        //   role: 'Customer Support',
+        //   type: 'break_paragraph',
+        //   time: new Date().getTime(),
+        //   // message_id: JSON.parse(localStorage.getItem('lastestMsgId') || ''),
+        // };
 
-          // saveMessage(latestMsg);
-        } else {
-          console.log('trước 20s');
-          timeStop.current = false;
-          setForceRenderValue((prev) => prev + 1);
-        }
+        // saveMessage(latestMsg);
+      } else {
+        console.log('trước 20s');
+        timeStop.current = false;
+        setForceRenderValue((prev) => prev + 1);
+        clearTimeout(id);
       }
     }, 20000);
+
     return () => {
       clearTimeout(id);
     };
@@ -359,11 +358,12 @@ function MainScreen() {
   useEffect(() => {
     // Kiểm tra nếu dữ liệu trả về là một giá trị duy nhất và không thay đổi sau 10s
 
-    const checkDataChange = setInterval(() => {
-      if (actionMess === 'WAIT') {
+    let checkDataChange: any;
+    if (actionMess === 'WAIT') {
+      checkDataChange = setInterval(() => {
         if (messages.length > 0) {
           const lastMsg = messages[messages.length - 1];
-          if (lastMsg?.role !== 'User') {
+          if (lastMsg?.role !== 'User' && lastMsg?.action === 'WAIT') {
             // Nếu tin nhắn cuối cùng không thay đổi trong 10s
             if (lastMessage.current === lastMsg.message) {
               if (Date.now() - lastMessageTime.current >= 20000) {
@@ -380,10 +380,8 @@ function MainScreen() {
             }
           }
         }
-      }
-    }, 1000); // Kiểm tra mỗi giây
-
-    if (actionMess === 'DONE') {
+      }, 1000); // Kiểm tra mỗi giây
+    } else if (actionMess === 'DONE') {
       clearInterval(checkDataChange);
     }
 
@@ -432,17 +430,17 @@ function MainScreen() {
           await saveMessage(data.result);
 
           const findLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
-            (item: any) => item.converId === localStorage.getItem('currentConversationIdLocal'),
+            (item: any) => item?.converId === localStorage.getItem('currentConversationIdLocal'),
           );
           const filterLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').filter(
-            (item: any) => item.converId !== localStorage.getItem('currentConversationIdLocal'),
+            (item: any) => item?.converId !== localStorage.getItem('currentConversationIdLocal'),
           );
 
           const findLocalAnswerBot = JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
-            (item: any) => item.converId === localStorage.getItem('currentConversationIdLocal'),
+            (item: any) => item?.converId === localStorage.getItem('currentConversationIdLocal'),
           );
           const filterLocalAnswerBot = JSON.parse(localStorage.getItem('answer_bot') || '[]').filter(
-            (item: any) => item.converId !== localStorage.getItem('currentConversationIdLocal'),
+            (item: any) => item?.converId !== localStorage.getItem('currentConversationIdLocal'),
           );
 
           if (findLocalStatusBot) {
@@ -472,6 +470,7 @@ function MainScreen() {
             };
             messages.push(message);
           }
+          // console.log('message', messages);
 
           setMessages([...messages]);
           setForceRenderValue((prev) => prev + 1);
@@ -500,7 +499,7 @@ function MainScreen() {
             localStorage.setItem('status_bot', JSON.stringify([...filterLocalStatusBot, findLocalStatusBot]));
             localStorage.setItem('answer_bot', JSON.stringify([...filterLocalAnswerBot, findLocalAnswerBot]));
 
-            console.log('đã chạy xong2');
+            console.log('hết trả lời');
             // console.log('find1yesdone', findLocalStatusBot);
             // console.log('find2yesdone', findLocalAnswerBot);
             setForceRenderValue((prev) => prev + 1);
@@ -513,17 +512,17 @@ function MainScreen() {
       console.log('đã xong');
 
       const findLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
-        (item: any) => item.converId === localStorage.getItem('currentConversationIdLocal'),
+        (item: any) => item?.converId === localStorage.getItem('currentConversationIdLocal'),
       );
       const filterLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').filter(
-        (item: any) => item.converId !== localStorage.getItem('currentConversationIdLocal'),
+        (item: any) => item?.converId !== localStorage.getItem('currentConversationIdLocal'),
       );
 
       const findLocalAnswerBot = JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
-        (item: any) => item.converId === localStorage.getItem('currentConversationIdLocal'),
+        (item: any) => item?.converId === localStorage.getItem('currentConversationIdLocal'),
       );
       const filterLocalAnswerBot = JSON.parse(localStorage.getItem('answer_bot') || '[]').filter(
-        (item: any) => item.converId !== localStorage.getItem('currentConversationIdLocal'),
+        (item: any) => item?.converId !== localStorage.getItem('currentConversationIdLocal'),
       );
       delete findLocalStatusBot.sending_question;
       delete findLocalStatusBot.exit_while_sending;
@@ -605,24 +604,24 @@ function MainScreen() {
         conversation_id = await createConversation(textValue, 'QA', null);
 
         const findStatusBotLocal = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
-          (item: any) => item.converId === conversation_id,
+          (item: any) => item?.converId === conversation_id,
         );
         const filterLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').filter(
-          (item: any) => item.converId !== conversation_id,
+          (item: any) => item?.converId !== conversation_id,
         );
 
         const findAnswerBotLocal = JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
-          (item: any) => item.converId === conversation_id,
+          (item: any) => item?.converId === conversation_id,
         );
         const filterLocalAnswerBot = JSON.parse(localStorage.getItem('answer_bot') || '[]').filter(
-          (item: any) => item.converId !== conversation_id,
+          (item: any) => item?.converId !== conversation_id,
         );
 
         const findStopBotLocal = JSON.parse(localStorage.getItem('stop_bot') || '[]').find(
-          (item: any) => item.converId === conversation_id,
+          (item: any) => item?.converId === conversation_id,
         );
         const filterLocalStopBot = JSON.parse(localStorage.getItem('stop_bot') || '[]').filter(
-          (item: any) => item.converId !== conversation_id,
+          (item: any) => item?.converId !== conversation_id,
         );
 
         if (findStatusBotLocal) {
@@ -651,22 +650,22 @@ function MainScreen() {
       } else {
         conversation_id = localStorage.getItem('currentConversationIdLocal') || currentConversationIdRef.current;
         const findStatusBotLocal = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
-          (item: any) => item.converId === conversation_id,
+          (item: any) => item?.converId === conversation_id,
         );
         const filterLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').filter(
-          (item: any) => item.converId !== conversation_id,
+          (item: any) => item?.converId !== conversation_id,
         );
         const findAnswerBotLocal = JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
-          (item: any) => item.converId === conversation_id,
+          (item: any) => item?.converId === conversation_id,
         );
         const filterLocalAnswerBot = JSON.parse(localStorage.getItem('answer_bot') || '[]').filter(
-          (item: any) => item.converId !== conversation_id,
+          (item: any) => item?.converId !== conversation_id,
         );
         const findStopBotLocal = JSON.parse(localStorage.getItem('stop_bot') || '[]').find(
-          (item: any) => item.converId === conversation_id,
+          (item: any) => item?.converId === conversation_id,
         );
         const filterLocalStopBot = JSON.parse(localStorage.getItem('stop_bot') || '[]').filter(
-          (item: any) => item.converId !== conversation_id,
+          (item: any) => item?.converId !== conversation_id,
         );
 
         if (findStatusBotLocal) {
@@ -703,15 +702,17 @@ function MainScreen() {
     const filterStatusBotLocal = JSON.parse(localStorage.getItem('status_bot') || '[]')?.filter(
       (item: any) => item?.converId !== currentConversationIdRef.current,
     );
-    delete findStatusBotLocal.sending_question;
-    delete findStatusBotLocal.exit_while_sending;
+    delete findStatusBotLocal?.sending_question;
+    delete findStatusBotLocal?.exit_while_sending;
     const findAnswerBotLocal = JSON.parse(localStorage.getItem('answer_bot') || '[]')?.find(
       (item: any) => item?.converId === currentConversationIdRef.current,
     );
     const filterAnswerBotLocal = JSON.parse(localStorage.getItem('answer_bot') || '[]')?.filter(
       (item: any) => item?.converId !== currentConversationIdRef.current,
     );
-    findAnswerBotLocal.type_answer = 'no_answer';
+    if (findAnswerBotLocal?.type_answer) {
+      findAnswerBotLocal.type_answer = 'no_answer';
+    }
     localStorage.setItem('status_bot', JSON.stringify([...filterStatusBotLocal, findStatusBotLocal]));
     localStorage.setItem('answer_bot', JSON.stringify([...filterAnswerBotLocal, findAnswerBotLocal]));
 
@@ -722,7 +723,9 @@ function MainScreen() {
     const filterStopBotLocal = JSON.parse(localStorage.getItem('stop_bot') || '[]')?.filter(
       (item: any) => item?.converId !== currentConversationIdRef.current,
     );
-    findStopBotLocal.is_stop = 'true';
+    if (findStopBotLocal?.is_stop) {
+      findStopBotLocal.is_stop = 'true';
+    }
     localStorage.setItem('stop_bot', JSON.stringify([...filterStopBotLocal, findStopBotLocal]));
 
     setActionMess('DONE');
@@ -851,7 +854,23 @@ function MainScreen() {
     // Xử lý khi nhấn Enter
     if (e.key === 'Enter') {
       if (e.ctrlKey && textValue.trim()) {
-        setTextValue(textValue + '\n');
+        // setTextValue(textValue + '\n');
+        // Get the current cursor position
+        const textarea = e.target as HTMLTextAreaElement;
+        const cursorPosition = textarea.selectionStart;
+
+        // Split the current text into two parts at the cursor position
+        const textBeforeCursor = textValue.slice(0, cursorPosition);
+        const textAfterCursor = textValue.slice(cursorPosition);
+
+        // Update the text value by inserting a new line at the cursor position
+        setTextValue(textBeforeCursor + '\n' + textAfterCursor);
+
+        // Set the cursor position back after the newline
+        setTimeout(() => {
+          textarea.selectionStart = cursorPosition + 1;
+          textarea.selectionEnd = cursorPosition + 1;
+        }, 0);
       } else {
         e.preventDefault();
         if (actionMess === 'WAIT') {
@@ -991,10 +1010,9 @@ function MainScreen() {
     const streamingElementsUser = document.querySelectorAll('.user-item-chat .streaming');
     const streamingElementsBot = document.querySelectorAll('.item-text-chat .streaming');
     const streamingElementsAll = document.querySelectorAll('.item-chat .streaming');
-    console.log('all', streamingElementsAll);
 
     const findLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
-      (item: any) => item.converId === currentConversationIdRef.current,
+      (item: any) => item?.converId === currentConversationIdRef.current,
     );
 
     if (streamingElementsAll.length && actionMess !== 'WAIT') {
@@ -1017,6 +1035,8 @@ function MainScreen() {
       }
     });
   }, [msgRef.current, actionMess, forceRenderValue]);
+
+  console.log('action', actionMess);
 
   const isCodeBlockRef = useRef(false);
   useEffect(() => {
@@ -1257,11 +1277,18 @@ function MainScreen() {
       const preTags = document.querySelectorAll('.item-chat pre');
 
       preTags.forEach((pre) => {
-        if (pre.parentNode) {
-          const wrapperDiv = document.createElement('div');
-          wrapperDiv.classList.add('code-block');
-          pre.parentNode.insertBefore(wrapperDiv, pre);
-          wrapperDiv.appendChild(pre);
+        if (pre) {
+          const parent = pre.parentElement;
+          if (parent && parent.classList.contains('code-block')) {
+            //
+          } else {
+            const wrapperDiv = document.createElement('div');
+            wrapperDiv.classList.add('code-block');
+            if (pre.parentNode) {
+              pre.parentNode.insertBefore(wrapperDiv, pre);
+              wrapperDiv.appendChild(pre);
+            }
+          }
         }
       });
     }
@@ -1297,10 +1324,10 @@ function MainScreen() {
     return () => {
       console.log('cleanup');
       const findLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
-        (item: any) => item.converId === currentConversationIdRef.current,
+        (item: any) => item?.converId === currentConversationIdRef.current,
       );
       const filterLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').filter(
-        (item: any) => item.converId !== currentConversationIdRef.current,
+        (item: any) => item?.converId !== currentConversationIdRef.current,
       );
 
       if (findLocalStatusBot) {
@@ -1755,10 +1782,10 @@ function MainScreen() {
         messages[messages.length - 1]?.role === 'User' &&
         ((messageStatus?.msg_type === 'user' &&
           JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
-            (itemBot: any) => itemBot.converId === currentConversationIdRef.current,
+            (itemBot: any) => itemBot?.converId === currentConversationIdRef.current,
           ) &&
           JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
-            (itemBot: any) => itemBot.converId === currentConversationIdRef.current,
+            (itemBot: any) => itemBot?.converId === currentConversationIdRef.current,
           )?.type_answer === 'no_answer') ||
           messageStatus?.msg_type === 'init') ? (
           <p className="typing-text">
