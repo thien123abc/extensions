@@ -136,6 +136,7 @@
     display: flex;
     justify-content: space-between;
     flex-direction: column;
+    padding-top: 24px;
 
     .default-text-chat {
       height: 85%;
@@ -201,7 +202,7 @@
           align-items: center;
           margin: 0px;
           font-weight: bold;
-          font-size: 16px;
+          font-size: 14px;
           font-family: 'Roboto', sans-serif;
           line-height: 16px;
 
@@ -214,8 +215,9 @@
           }
 
           img {
-            width: 16px;
-            height: 16px;
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
             border-radius: 8px;
             margin-right: 4px;
             padding: 4px;
@@ -251,14 +253,18 @@
             margin: 0;
             padding: 0;
           }
-          ul li {
-            list-style: none;
-          }
+          // ul li {
+          //   list-style: none;
+          // }
           ul li:has(input[type='checkbox']) {
             list-style: none;
             display: flex;
             font-size: 14px;
             gap: 4px;
+          }
+
+          ul li p:has(input[type='checkbox']) input[type='checkbox'] {
+            top: 4px;
           }
 
           /* Ẩn giao diện mặc định của checkbox */
@@ -272,7 +278,6 @@
             position: relative;
             pointer-events: none;
             flex-shrink: 0;
-            margin-top: 4px;
           }
 
           /* Trường hợp 1 và 2: Không có checked, unchecked hoặc chỉ có unchecked */
@@ -341,22 +346,29 @@
           }
           h1 {
             font-size: 32px;
+            line-height: 40px;
           }
           h2 {
             font-size: 26px;
+            line-height: 32px;
           }
           h3 {
             font-size: 22px;
+            line-height: 28px;
           }
           h4 {
             font-size: 18px;
+            line-height: 24px;
           }
           h5 {
             font-size: 16px;
+            line-height: 24px;
           }
           h6 {
             font-size: 14px;
+            line-height: 21px;
           }
+
           // p,
           // div,
           // article,
@@ -412,7 +424,8 @@
             }
           }
         }
-        .streaming {
+        .streaming,
+        .streaming_view_process {
           background-color: #89a357;
           box-shadow: 0px 0px 4px 0px #5fff51;
           animation: blink 0.5s infinite;
@@ -433,6 +446,10 @@
           padding-right: 12px;
           padding-bottom: 14px;
           padding-left: 12px;
+
+          p {
+            margin: 0;
+          }
 
           .div-table {
             width: 100%;
@@ -748,6 +765,101 @@ textarea {
     }
     .hljs-title {
       color: #4078f2;
+    }
+  }
+}
+
+.dot-style {
+  width: 2px;
+  height: 2px;
+  background-color: #89a357;
+  box-shadow: 0px 0px 4px 0px #5fff51;
+  opacity: 0;
+  animation: dot-animation 1s infinite;
+}
+
+/* Đặt thời gian delay khác nhau cho từng ô */
+.dot-style:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.dot-style:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.dot-style:nth-child(3) {
+  animation-delay: 0.5s;
+}
+
+/* Keyframes cho animation */
+@keyframes dot-animation {
+  0%,
+  20% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1; /* Hiện */
+  }
+  60% {
+    opacity: 1; /* Giữ hiện */
+  }
+  100% {
+    opacity: 0; /* Ẩn lại */
+  }
+}
+
+.opener {
+  width: 100%;
+  margin-bottom: 20px;
+  .header-opener {
+    display: flex;
+    align-items: center;
+    height: 24px;
+    margin-bottom: 8px;
+    gap: 8px;
+
+    img {
+      width: 24px;
+      height: 24px;
+    }
+    p {
+      font-weight: 500;
+      font-size: 14px;
+      line-height: 20px;
+      color: #f2f2f3;
+    }
+  }
+
+  .content-opener {
+    padding: 10px 12px 14px 12px;
+    background-color: #242428;
+    border: 1px solid #ffffff1f;
+    border-radius: 4px;
+    .title-content {
+      font-weight: 400;
+      font-size: 14px;
+      line-height: 24px;
+      color: #f2f2f3;
+      margin: 0;
+      margin-bottom: 8px;
+    }
+    .list-item-content {
+      border-top: 1px solid #ffffff1f;
+      padding-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+
+      .item-content {
+        border-radius: 4px;
+        padding: 6px 8px;
+        background-color: #494950;
+        color: #e5e5e7;
+        font-size: 12px;
+        line-height: 16px;
+        text-align: justify;
+        cursor: pointer;
+      }
     }
   }
 }
