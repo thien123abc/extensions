@@ -3,7 +3,7 @@
 /* eslint-disable no-useless-escape */
 import { useHistory, useLocation } from 'react-router-dom';
 import { useContext, useEffect, useRef, useState } from 'react';
-import { marked } from 'marked';
+import { marked, use } from 'marked';
 import api from '../api/VsocApi';
 import {
   IChromeMessage,
@@ -58,6 +58,11 @@ import {
   regexMath,
 } from '../utils/constantRegex';
 import remarkKeepFootnotes from '../utils/remarkKeepFootnotes';
+import useNetworkStatus from '../hooks/useNetworkStatus';
+import CheckIcon from '../assets/icons/check-icon.svg';
+import Typewriter from 'typewriter-effect';
+import { StatusNode } from '../utils/constantType';
+import ConversationOpener from '../components/ConversationOpener';
 
 interface IVsocStoredMessageStore extends IVsocStoredMessage {
   isStored?: boolean;
@@ -69,6 +74,9 @@ interface ImgStatus {
 }
 
 function MainScreen() {
+  const { isOnline } = useNetworkStatus();
+  const [message, setMessage] = useState('');
+  const [hasShownOnlineToast, setHasShownOnlineToast] = useState(isOnline); // Thêm flag
   const history = useHistory();
   const [forceRenderValue, setForceRenderValue] = useState<number>(0);
   const [messages, setMessages] = useState<IVsocStoredMessageStore[]>([]);
@@ -90,6 +98,8 @@ function MainScreen() {
   const [errorMessage, setErrorMessage] = useState('');
   const [stopGenerate, setStopGenerate] = useState(false);
   const [leftOffset, setLeftOffset] = useState({ width: '0px', heigth: '0px' });
+  const [isDrop, setIsDrop] = useState(false);
+  const [isPaste, setIsPaste] = useState(false);
   const [messageStatus, setMessageStatus] = useState<{
     msg_id: string;
     msg_type: 'user' | 'bot' | 'init';
@@ -171,14 +181,12 @@ function MainScreen() {
   }, []);
 
   const timeStop = useRef(false);
-  console.log('timeStop', timeStop.current);
-
   marked.use({
     silent: true,
   });
 
-  const handleCopy = (messageId: string, index: number) => {
-    const messageContent = copyContentRef.current.find((item) => item.position === index)?.content as string;
+  const handleCopy = (messageId: string) => {
+    const messageContent = copyContentRef.current.find((item) => item.position === messageId)?.content as string;
 
     navigator.clipboard
       .writeText(messageContent)
@@ -225,12 +233,13 @@ function MainScreen() {
       conversation_id: id,
       limit: 30,
     });
-    // console.log('listMessages', listMessages);
+    // console.log('_list', listMessages);
 
     const dataMessagesApi = (await getMessagesApiAsync({ conversation_id: id, limit: 30 }))
       .result as IVsocGetMessageApiArgs[];
-    // console.log('dataMessagesApi', dataMessagesApi);
-    if (listMessages.result) {
+    // console.log('_dataMessagesApi', dataMessagesApi);
+
+    if (listMessages.result && dataMessagesApi) {
       const filterListMsg = listMessages.result.filter((item) => !(item.message === ''));
       const _list: IVsocStoredMessageStore[] = [];
       for (const item of filterListMsg) {
@@ -240,13 +249,19 @@ function MainScreen() {
           message_html: await markdownToHtml(item.message),
         });
       }
-
+      console.log('_list', _list);
+      console.log('_dataMessagesApi', dataMessagesApi);
       const transformedMessages = _list.map((item, index) => {
-        if (index % 2 === 0)
+        // if (index % 2 === 0)
+        //   return {
+        //     ...item,
+        //     message_id: dataMessagesApi[index / 2]?.message_id,
+        //     feedback: dataMessagesApi[index / 2]?.feedback,
+        //   };
+        if (item?.role !== 'User')
           return {
             ...item,
-            message_id: dataMessagesApi[index / 2]?.message_id,
-            feedback: dataMessagesApi[index / 2]?.feedback,
+            feedback: dataMessagesApi?.find((msg) => msg?.message_id === item?.message_id)?.feedback,
           };
         return item;
       });
@@ -274,7 +289,7 @@ function MainScreen() {
           }
           return [...prev];
         });
-        setActionMess('');
+        setActionMess('DONE');
       }
     }
   };
@@ -298,24 +313,31 @@ function MainScreen() {
         type: 'break_paragraph',
         time: new Date().getTime(),
         // message_id: JSON.parse(localStorage.getItem('lastestMsgId') || ''),
+        event: 'message',
+        node_title: '',
+        elapsed_time: 0,
+        message_id: JSON.parse(localStorage.getItem('lastest') || '[]')?.find(
+          (item: any) => item?.conversation_id === localStorage.getItem('currentConversationIdLocal'),
+        )?.lastestMsgId,
       };
 
       saveMessage(latestMsg);
     }
   }, [stopGenerate]);
 
-  console.log('stopGenerate', stopGenerate);
+  // console.log('stopGenerate', stopGenerate);
 
   useEffect(() => {
     const id = setTimeout(() => {
       if (
+        actionMess === 'WAIT' &&
         messages.length > 0 &&
         messages[messages.length - 1]?.role === 'User' &&
         messages[messages.length - 1]?.action === 'WAIT' &&
-        !stopGenerate &&
-        JSON.parse(localStorage.getItem('stop_bot') || '[]')?.find(
-          (item: any) => item?.converId === localStorage.getItem('currentConversationIdLocal'),
-        )?.is_stop === 'false'
+        !stopGenerate
+        // &&JSON.parse(localStorage.getItem('stop_bot') || '[]')?.find(
+        //   (item: any) => item?.converId === localStorage.getItem('currentConversationIdLocal'),
+        // )?.is_stop === 'false'
       ) {
         console.log('quá 20s nha');
         timeStop.current = true;
@@ -325,20 +347,6 @@ function MainScreen() {
           const filter = prev.slice(0, prev.length - 1);
           return [...filter, last];
         });
-        // const latestMsg: IVsocStoredMessageStore = {
-        //   action: 'DONE',
-        //   conversation_id: localStorage.getItem('currentConversationIdLocal') || currentConversationIdRef.current,
-        //   feedback: null,
-        //   isStored: true,
-        //   message: '',
-        //   message_html: '',
-        //   role: 'Customer Support',
-        //   type: 'break_paragraph',
-        //   time: new Date().getTime(),
-        //   // message_id: JSON.parse(localStorage.getItem('lastestMsgId') || ''),
-        // };
-
-        // saveMessage(latestMsg);
       } else {
         console.log('trước 20s');
         timeStop.current = false;
@@ -347,48 +355,57 @@ function MainScreen() {
       }
     }, 20000);
 
+    if (
+      actionMess === 'DONE' &&
+      messages.length > 0 &&
+      messages[messages.length - 1]?.role !== 'User' &&
+      messages[messages.length - 1]?.action === 'DONE'
+    ) {
+      timeStop.current = false;
+    }
+
     return () => {
       clearTimeout(id);
     };
   }, [actionMess, msgRef.current, forceRenderValue]);
 
-  const lastMessageTime = useRef(0); // Thời gian của tin nhắn cuối cùng được trả về
-  const lastMessage = useRef(''); // Lưu giữ nội dung của tin nhắn cuối cùng
+  //const lastMessageTime = useRef(0); // Thời gian của tin nhắn cuối cùng được trả về
+  //const lastMessage = useRef(''); // Lưu giữ nội dung của tin nhắn cuối cùng
 
-  useEffect(() => {
-    // Kiểm tra nếu dữ liệu trả về là một giá trị duy nhất và không thay đổi sau 10s
+  // useEffect(() => {
+  //   // Kiểm tra nếu dữ liệu trả về là một giá trị duy nhất và không thay đổi sau 10s
 
-    let checkDataChange: any;
-    if (actionMess === 'WAIT') {
-      checkDataChange = setInterval(() => {
-        if (messages.length > 0) {
-          const lastMsg = messages[messages.length - 1];
-          if (lastMsg?.role !== 'User' && lastMsg?.action === 'WAIT') {
-            // Nếu tin nhắn cuối cùng không thay đổi trong 10s
-            if (lastMessage.current === lastMsg.message) {
-              if (Date.now() - lastMessageTime.current >= 20000) {
-                console.log('Dữ liệu không thay đổi trong 10s, hiển thị nút pause');
-                timeStop.current = true;
-              }
-            } else {
-              // Nếu tin nhắn đã thay đổi, cập nhật lại thời gian và giá trị tin nhắn
-              lastMessage.current = lastMsg.message;
-              lastMessageTime.current = Date.now();
-              console.log('đã thay đổi trong 20s');
+  //   let checkDataChange: any;
+  //   if (actionMess === 'WAIT') {
+  //     checkDataChange = setInterval(() => {
+  //       if (messages.length > 0) {
+  //         const lastMsg = messages[messages.length - 1];
+  //         if (lastMsg?.role !== 'User' && lastMsg?.action === 'WAIT') {
+  //           // Nếu tin nhắn cuối cùng không thay đổi trong 10s
+  //           if (lastMessage.current === lastMsg.message) {
+  //             if (Date.now() - lastMessageTime.current >= 20000) {
+  //               console.log('Dữ liệu không thay đổi trong 20s, hiển thị nút pause');
+  //               timeStop.current = true;
+  //             }
+  //           } else {
+  //             // Nếu tin nhắn đã thay đổi, cập nhật lại thời gian và giá trị tin nhắn
+  //             lastMessage.current = lastMsg.message;
+  //             lastMessageTime.current = Date.now();
+  //             console.log('đã thay đổi trong 20s');
 
-              // timeStop.current = false;
-            }
-          }
-        }
-      }, 1000); // Kiểm tra mỗi giây
-    } else if (actionMess === 'DONE') {
-      clearInterval(checkDataChange);
-    }
+  //             // timeStop.current = false;
+  //           }
+  //         }
+  //       }
+  //     }, 1000); // Kiểm tra mỗi giây
+  //   } else if (actionMess === 'DONE') {
+  //     clearInterval(checkDataChange);
+  //   }
 
-    return () => {
-      clearInterval(checkDataChange);
-    };
-  }, [actionMess, msgRef.current, forceRenderValue]);
+  //   return () => {
+  //     clearInterval(checkDataChange);
+  //   };
+  // }, [actionMess, msgRef.current, forceRenderValue]);
 
   const scrollToBottom = () => {
     if (scrollRef.current) {
@@ -411,20 +428,75 @@ function MainScreen() {
           conversation_id: id,
         });
 
-        if (data.result) {
-          console.log('data.result', data.result);
-
+        if (
+          data.result &&
+          data.result?.message_id ===
+            JSON.parse(localStorage.getItem('lastest') || '[]')?.find(
+              (entry: any) => entry?.conversation_id === currentConversationIdRef.current,
+            )?.lastestMsgId
+        ) {
           parentMsgIdRef.current = data.result.message_id as string;
-          if (!data.result.message && data.result.action == 'WAIT') {
+          if (!data.result.message && data.result.action == 'WAIT' && data.result.event !== 'node') {
             setTimeout(() => getListData(id), 1000);
             return;
           }
 
+          if (data.result.event === 'node') {
+            // Lưu các node_title vào localStorage
+            const nodes = JSON.parse(localStorage.getItem('nodes') || '[]');
+            const { conversation_id, message_id, node_title, elapsed_time } = data.result;
+
+            const existingEntry = nodes.find(
+              (entry: any) => entry.conversation_id === conversation_id && entry.msg_id === message_id,
+            );
+
+            if (existingEntry) {
+              console.log('data.result sau', data.result);
+              // if (!existingEntry.node_titles.includes(node_title)) {
+              //     existingEntry.node_titles.push(node_title);
+              // }
+              existingEntry.node_titles.push(node_title.replace(/^\[.*?\]\s*/, ''));
+              elapsed_time > 0 && existingEntry.time.push(elapsed_time);
+              console.log('push sau', [...existingEntry.node_titles]);
+            } else {
+              console.log('data.result trước', data.result);
+              nodes.push({
+                conversation_id,
+                msg_id: message_id,
+                node_titles: [node_title.replace(/^\[.*?\]\s*/, '')],
+                is_completed: StatusNode.INIT, // Đánh dấu là chưa xong
+                time: elapsed_time > 0 ? [elapsed_time] : [],
+                totalTime: 0,
+              });
+              console.log('push trước', [...nodes]);
+            }
+            console.log('push cuối cùng', [...nodes]);
+            localStorage.setItem('nodes', JSON.stringify([...nodes]));
+          }
+
           if (data.result.action == 'DONE') {
+            console.log('push done', JSON.parse(localStorage.getItem('nodes') || '[]'));
             // xử lý khi bot trả lời xong
             // ...
             setStopGenerate(true);
             isStopAnswerRef.current = false;
+
+            // Cập nhật trạng thái là đã hoàn thành
+            // const nodes = JSON.parse(localStorage.getItem('nodes') || '[]');
+            // nodes.forEach((entry: any) => {
+            //   // Kiểm tra cả conversation_id và msg_id
+            //   if (
+            //     entry.conversation_id === currentConversationIdRef.current &&
+            //     data.result &&
+            //     entry.msg_id === data.result.message_id
+            //   ) {
+            //     entry.is_completed = true; // Cập nhật trạng thái là đã hoàn thành
+            //   }
+            // });
+
+            // localStorage.setItem('nodes', JSON.stringify(nodes));
+
+            // setPreviousTitlesCount(0);
           }
 
           await saveMessage(data.result);
@@ -455,7 +527,7 @@ function MainScreen() {
           if (
             messages.length > 0 &&
             messages[messages.length - 1].type == 'text' &&
-            messages[messages.length - 1].role == data.result.role
+            messages[messages.length - 1]?.task_id == data.result?.task_id
           ) {
             const raw = messages[messages.length - 1].message + data.result.message;
             messages[messages.length - 1] = {
@@ -463,14 +535,16 @@ function MainScreen() {
               message: raw,
               message_html: await markdownToHtml(raw),
             };
+            // console.log('phần tử1');
           } else {
             const message: IVsocStoredMessageStore = {
               ...data.result,
               message_html: await markdownToHtml(data.result.message),
             };
+            // console.log('phần tử2', message);
             messages.push(message);
           }
-          // console.log('message', messages);
+          // console.log('mảng', [...messages]);
 
           setMessages([...messages]);
           setForceRenderValue((prev) => prev + 1);
@@ -499,9 +573,6 @@ function MainScreen() {
             localStorage.setItem('status_bot', JSON.stringify([...filterLocalStatusBot, findLocalStatusBot]));
             localStorage.setItem('answer_bot', JSON.stringify([...filterLocalAnswerBot, findLocalAnswerBot]));
 
-            console.log('hết trả lời');
-            // console.log('find1yesdone', findLocalStatusBot);
-            // console.log('find2yesdone', findLocalAnswerBot);
             setForceRenderValue((prev) => prev + 1);
           }
         }
@@ -509,7 +580,7 @@ function MainScreen() {
         setActionMess('');
       }
     } else {
-      console.log('đã xong');
+      // console.log('đã xong');
 
       const findLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
         (item: any) => item?.converId === localStorage.getItem('currentConversationIdLocal'),
@@ -541,18 +612,32 @@ function MainScreen() {
         type: 'break_paragraph',
         time: new Date().getTime(),
         // message_id: JSON.parse(localStorage.getItem('lastestMsgId') || ''),
+        event: 'message',
+        node_title: '',
+        elapsed_time: 0,
+        message_id: JSON.parse(localStorage.getItem('lastest') || '[]')?.find(
+          (item: any) => item?.conversation_id === localStorage.getItem('currentConversationIdLocal'),
+        )?.lastestMsgId,
       };
 
       await saveMessage(latestMsg);
     }
   };
 
-  const createConversation = async (msg: string, type: VsocConversationType, parentMsgId: string | null) => {
-    const dataCreate = await api.conversation.createAsync({
-      text: msg,
-      type: type,
-      parentMsgId,
-    });
+  const createConversation = async (
+    msg: string,
+    type: VsocConversationType,
+    parentMsgId: string | null,
+    signal: AbortSignal,
+  ) => {
+    const dataCreate = await api.conversation.createAsync(
+      {
+        text: msg,
+        type: type,
+        parentMsgId,
+      },
+      signal,
+    );
     if (dataCreate.result?.conversation_id) {
       await saveConversation(msg, dataCreate.result.conversation_id);
     }
@@ -572,12 +657,20 @@ function MainScreen() {
     });
   };
 
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
+
   const sendMessages = async () => {
     try {
+      console.log('alo', textValue);
       if (!textValue.trim()) {
         return;
       }
+
+      const controller = new AbortController(); // Tạo mới AbortController
+      setAbortController(controller);
+
       setTextValue('');
+      setIsSelectedOpener(false);
       setActionMess('WAIT');
       setStopGenerate(false);
       isStopAnswerRef.current = false;
@@ -596,12 +689,16 @@ function MainScreen() {
         role: 'User',
         action: 'WAIT',
         type: 'break_paragraph',
+        event: 'message',
+        node_title: '',
+        elapsed_time: 0,
       };
       messages.push(msg);
       setForceRenderValue((prev) => prev + 1);
       scrollToBottom();
-      if (messages.length <= 1) {
-        conversation_id = await createConversation(textValue, 'QA', null);
+      // if (messages.length <= 1) {
+      if (!currentConversationID) {
+        conversation_id = await createConversation(textValue, 'QA', null, controller.signal);
 
         const findStatusBotLocal = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
           (item: any) => item?.converId === conversation_id,
@@ -648,7 +745,7 @@ function MainScreen() {
         await saveMessage(msg);
         setForceRenderValue((prev) => prev + 1);
       } else {
-        conversation_id = localStorage.getItem('currentConversationIdLocal') || currentConversationIdRef.current;
+        conversation_id = currentConversationID || currentConversationIdRef.current;
         const findStatusBotLocal = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
           (item: any) => item?.converId === conversation_id,
         );
@@ -679,12 +776,17 @@ function MainScreen() {
         }
 
         await saveMessage(msg);
-        await api.message.sendAsync({
-          conversation_id: conversation_id,
-          text: textValue,
-          parentMsgId: parentMsgIdRef.current,
-        });
+        await api.message.sendAsync(
+          {
+            conversation_id: conversation_id,
+            text: textValue,
+            parentMsgId: parentMsgIdRef.current,
+          },
+          controller.signal,
+        );
       }
+      // viewStatusRef.current = false;
+      setViewStatus(false);
       await getListData(conversation_id);
       // setTimeout(async () => {
       //   await getListData(conversation_id);
@@ -695,6 +797,9 @@ function MainScreen() {
   };
 
   const handleStopGenarate = async () => {
+    if (abortController) {
+      abortController.abort(); // Hủy yêu cầu khi nhấn Pause
+    }
     timeStop.current = false;
     const findStatusBotLocal = JSON.parse(localStorage.getItem('status_bot') || '[]')?.find(
       (item: any) => item?.converId === currentConversationIdRef.current,
@@ -741,6 +846,38 @@ function MainScreen() {
       conversation_id: localStorage.getItem('currentConversationIdLocal') || currentConversationIdRef.current,
     });
 
+    if (messages.length && messages[messages.length - 1]?.role !== 'User') {
+      if (messages[messages.length - 1]?.message?.length > 0) {
+        setViewStatus(true);
+      } else {
+        // setViewStatus(false)
+        const nodes = JSON.parse(localStorage.getItem('nodes') || '[]');
+        const currentConversationId = currentConversationIdRef.current;
+        // const currentMsgId = parentMsgIdRef.current; // Lấy msg_id hiện tại
+        const currentMsgId = JSON.parse(localStorage.getItem('lastest') || '[]')?.find(
+          (item: any) => item?.conversation_id === localStorage.getItem('currentConversationIdLocal'),
+        )?.lastestMsgId;
+
+        // Lọc các node có đúng conversation_id và msg_id
+        const targetNode = nodes.find(
+          (node: any) => node.conversation_id === currentConversationId && node.msg_id === currentMsgId,
+        );
+        const restNode = nodes.filter(
+          (node: any) => node.conversation_id !== currentConversationId || node.msg_id !== currentMsgId,
+        );
+        // console.log('currentConversationId', currentConversationId, '=>', currentMsgId);
+        if (targetNode) {
+          // setTimeout(() => {
+          targetNode.is_completed = StatusNode.UNFINISHED;
+          // targetNode.current_title = currentNodeTitle;
+          localStorage.setItem('nodes', JSON.stringify([...restNode, targetNode]));
+          setCurrentNodeTitle('');
+          // }, 1000);
+        }
+        console.log('có stop ko', targetNode);
+      }
+    }
+
     const latestMsg: IVsocStoredMessageStore = {
       action: 'DONE',
       conversation_id: localStorage.getItem('currentConversationIdLocal') || currentConversationIdRef.current,
@@ -751,12 +888,17 @@ function MainScreen() {
       role: 'Customer Support',
       type: 'break_paragraph',
       time: new Date().getTime(),
-      // message_id: JSON.parse(localStorage.getItem('lastestMsgId') || ''),
+      event: 'message',
+      node_title: '',
+      elapsed_time: 0,
+      message_id: JSON.parse(localStorage.getItem('lastest') || '[]')?.find(
+        (item: any) => item?.conversation_id === localStorage.getItem('currentConversationIdLocal'),
+      )?.lastestMsgId,
     };
 
     await saveMessage(latestMsg);
 
-    if (messageStatus?.task_id) {
+    if (messageStatus?.task_id && isOnline) {
       await stopGenarateAsync(messageStatus.task_id);
     }
   };
@@ -819,9 +961,11 @@ function MainScreen() {
       if (fileTypeRegex.test(fileName) || fileTypeRegex.test(fileType)) {
         setErrorMessage('Không cho phép kéo thả tệp vào ô nhập liệu' + fileName);
         setToastInfo(true);
+        setIsDrop(true);
       } else {
         setErrorMessage('');
         setToastInfo(false);
+        setIsDrop(false);
       }
     }
   };
@@ -840,12 +984,14 @@ function MainScreen() {
           event.preventDefault(); // Không cho phép dán tệp không hợp lệ
           setErrorMessage('Không được dán tệp có định dạng không hợp lệ.' + fileName);
           setToastInfo(true);
+          setIsPaste(true);
           return;
         }
       }
     }
     setErrorMessage('');
     setToastInfo(false);
+    setIsPaste(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -872,20 +1018,36 @@ function MainScreen() {
           textarea.selectionEnd = cursorPosition + 1;
         }, 0);
       } else {
-        e.preventDefault();
-        if (actionMess === 'WAIT') {
+        if (isOnline) {
           e.preventDefault();
-          return false;
-        }
-        if (area) {
-          area.style.left = '0px';
-          area.style.top = '0px';
-        }
-        // if (mirror) {
-        //   mirror.style.left = '10px';
-        //   mirror.style.top = '0px';
-        // }
-        sendMessages();
+          if (actionMess === 'WAIT') {
+            e.preventDefault();
+            return false;
+          }
+          if (area) {
+            area.style.left = '0px';
+            area.style.top = '0px';
+          }
+          // if (mirror) {
+          //   mirror.style.left = '10px';
+          //   mirror.style.top = '0px';
+          // }
+          sendMessages();
+        } else setToastInfo(true);
+      }
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+
+      const currentPos = cursorPosition;
+      const nextPos = (currentPos + 1) % inputPositions.length; // Di chuyển đến vị trí tiếp theo (vòng lại)
+      setCursorPosition(nextPos);
+
+      // Di chuyển con trỏ đến vị trí tiếp theo
+      const inputStart = inputPositions[nextPos];
+      const textarea = textareaRef.current;
+      if (textarea) {
+        textarea.setSelectionRange(inputStart, inputStart); // Đặt lại con trỏ ở vị trí mới
       }
     }
   };
@@ -955,7 +1117,7 @@ function MainScreen() {
         const parent = table.parentElement;
 
         if (parent && parent.classList.contains('div-table')) {
-          // console.log('Table đã có thẻ cha với class "div-table".');
+          //
         } else {
           const wrapper = document.createElement('div');
           wrapper.classList.add('div-table');
@@ -1015,28 +1177,46 @@ function MainScreen() {
       (item: any) => item?.converId === currentConversationIdRef.current,
     );
 
-    if (streamingElementsAll.length && actionMess !== 'WAIT') {
+    if (streamingElementsAll.length) {
       streamingElementsAll.forEach((el, index) => {
-        el.remove();
+        // if (
+        //   actionMess === 'WAIT' &&
+        //   messages[messages.length - 1]?.role !== 'User'
+        //   // &&
+        //   // findLocalStatusBot &&
+        //   // !findLocalStatusBot.exit_while_sending &&
+        //   // findLocalStatusBot.exit_while_sending !== 'exit_while_sending'
+        // ) {
+        //   index !== streamingElementsBot.length - 1 && el.remove();
+        // }
+        if (actionMess !== 'WAIT') {
+          el.remove();
+        }
       });
     }
-    streamingElementsUser.forEach((el) => el.remove());
-    streamingElementsBot.forEach((el, index) => {
-      if (
-        actionMess === 'WAIT' &&
-        messages[messages.length - 1]?.role !== 'User' &&
-        findLocalStatusBot &&
-        !findLocalStatusBot.exit_while_sending &&
-        findLocalStatusBot.exit_while_sending !== 'exit_while_sending'
-      ) {
-        index !== streamingElementsBot.length - 1 && el.remove();
-      } else {
-        el.remove();
-      }
-    });
-  }, [msgRef.current, actionMess, forceRenderValue]);
+    if (streamingElementsUser.length) {
+      streamingElementsUser.forEach((el) => el.remove());
+    }
 
-  console.log('action', actionMess);
+    // console.log('count', streamingElementsBot);
+    if (streamingElementsBot.length) {
+      streamingElementsBot.forEach((el, index) => {
+        if (
+          actionMess === 'WAIT' &&
+          messages[messages.length - 1]?.role !== 'User' &&
+          findLocalStatusBot &&
+          !findLocalStatusBot.exit_while_sending &&
+          findLocalStatusBot.exit_while_sending !== 'exit_while_sending'
+        ) {
+          index !== streamingElementsBot.length - 1 && el.remove();
+        } else {
+          el.remove();
+        }
+      });
+    }
+  }, [actionMess, msgRef.current, forceRenderValue]);
+
+  // console.log('actionMess', actionMess);
 
   const isCodeBlockRef = useRef(false);
   useEffect(() => {
@@ -1130,15 +1310,18 @@ function MainScreen() {
     return parts;
   };
 
-  const copyContentRef = useRef<{ position: number; content: string }[]>([]);
+  const copyContentRef = useRef<{ position: string; content: string }[]>([]);
 
   useEffect(() => {
     copyContentRef.current = [];
     const contents = document.querySelectorAll('.item-chat');
+
     contents.forEach((el, index) => {
       const parsedContent = (el.textContent as string).replace(/\[\s?[x ]\s?\]/g, '').replace(/copy/gi, '');
 
-      copyContentRef.current.push({ position: 2 * index + 1, content: parsedContent });
+      const msgId = el.getAttribute('data-msg_id');
+
+      copyContentRef.current.push({ position: msgId as string, content: parsedContent });
     });
   }, [msgRef.current, forceRenderValue, actionMess]);
 
@@ -1312,17 +1495,36 @@ function MainScreen() {
       link.setAttribute('type', 'checkbox');
     });
     document.querySelectorAll('.item-chat .sr-only').forEach((el) => {
-      el.remove();
+      el?.remove();
     });
   }, [msgRef.current, forceRenderValue, actionMess]);
 
-  console.log('msg', messages);
+  useEffect(() => {
+    // Kiểm tra trạng thái mạng và hiển thị thông báo chỉ khi thay đổi
+    if (isOnline && !hasShownOnlineToast) {
+      setMessage('Đã có kết nối mạng.');
+      setToastInfo(true);
+      setHasShownOnlineToast(true); // Đánh dấu là đã hiển thị thông báo có mạng
+    } else if (!isOnline) {
+      setMessage('Mất kết nối mạng. Vui lòng kiểm tra lại kết nối internet của bạn và thử lại.');
+      setToastInfo(true);
+      setHasShownOnlineToast(false); // Reset flag khi mất kết nối mạng
+    }
+
+    // Ẩn toast sau 3 giây
+    const timeoutId = setTimeout(() => {
+      setToastInfo(false); // Ẩn toast sau 3 giây
+    }, 3000);
+
+    return () => clearTimeout(timeoutId);
+  }, [isOnline, hasShownOnlineToast]);
+
+  // console.log('msg', messages);
 
   const hasFootnotesRef = useRef(false);
 
   useEffect(() => {
     return () => {
-      console.log('cleanup');
       const findLocalStatusBot = JSON.parse(localStorage.getItem('status_bot') || '[]').find(
         (item: any) => item?.converId === currentConversationIdRef.current,
       );
@@ -1333,12 +1535,269 @@ function MainScreen() {
       if (findLocalStatusBot) {
         if (findLocalStatusBot.sending_question === 'sending_question') {
           findLocalStatusBot.exit_while_sending = 'exit_while_sending';
-          console.log('tim thay', findLocalStatusBot);
           localStorage.setItem('status_bot', JSON.stringify([...filterLocalStatusBot, findLocalStatusBot]));
         }
       }
     };
   }, []);
+
+  const typingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const countRef = useRef<number>(
+    JSON.parse(localStorage.getItem('nodes') || '[]')?.find(
+      (item: any) =>
+        item?.conversation_id === location?.state?.id &&
+        item?.msg_id ===
+          JSON.parse(localStorage.getItem('lastest') || '[]')?.find(
+            (item: any) => item?.conversation_id === location?.state?.id,
+          )?.lastestMsgId,
+    )?.node_titles?.length || 0,
+  );
+
+  const [currentNodeTitle, setCurrentNodeTitle] = useState<string>('');
+  const [isTyping, setIsTyping] = useState<boolean>(false);
+  const [previousTitlesCount, setPreviousTitlesCount] = useState<number>(0);
+  const [isCurrentTitleDone, setIsCurrentTitleDone] = useState(false);
+  // const [viewStatus, setViewStatus] = useState(
+  //   JSON.parse(localStorage.getItem('nodes') || '[]')?.find(
+  //     (item: any) =>
+  //       item?.conversation_id === location?.state?.id &&
+  //       item?.msg_id ===
+  //         JSON.parse(localStorage.getItem('lastest') || '[]')?.find(
+  //           (item: any) => item?.conversation_id === location?.state?.id,
+  //         )?.lastestMsgId,
+  //   )?.node_titles?.length === countRef.current,
+  // );
+
+  const [viewStatus, setViewStatus] = useState(
+    JSON.parse(localStorage.getItem('nodes') || '[]')?.find(
+      (item: any) =>
+        item?.conversation_id === location?.state?.id &&
+        item?.msg_id ===
+          JSON.parse(localStorage.getItem('lastest') || '[]')?.find(
+            (item: any) => item?.conversation_id === location?.state?.id,
+          )?.lastestMsgId,
+    )?.is_completed === StatusNode.FINISHED || false,
+  );
+
+  // Hàm để gõ chuỗi từng ký tự với độ trễ
+  const typeText = (texts: string[], index: number = 0) => {
+    if (index < texts.length) {
+      const text = texts[index];
+      let charIndex = 0;
+      let currentText = '';
+      setIsCurrentTitleDone(false);
+
+      // Tạo setInterval để gõ từng ký tự
+      typingIntervalRef.current = setInterval(() => {
+        currentText += text.charAt(charIndex);
+        setCurrentNodeTitle(currentText); // Cập nhật text từng chữ
+        charIndex++;
+
+        if (charIndex === text.length) {
+          setIsCurrentTitleDone(true);
+          // Dừng setInterval khi gõ xong chuỗi hiện tại
+          if (typingIntervalRef.current) {
+            clearInterval(typingIntervalRef.current);
+          }
+          timeoutRef.current = setTimeout(() => {
+            //typeText(texts, index + 1); // Gọi đệ quy để gõ chuỗi tiếp theo
+            setIsTyping(false);
+            indexRef.current++;
+            // if (viewStatus) {
+            //   setCurrentNodeTitle('');
+            //   setIsCurrentTitleDone(true);
+            // }
+          }, 30); // Thời gian để chờ trước khi chuyển sang chuỗi tiếp theo
+        }
+      }, 30);
+    }
+  };
+
+  useEffect(() => {
+    if (viewStatus) {
+      // Cập nhật trạng thái là đã hoàn thành
+      const nodes = JSON.parse(localStorage.getItem('nodes') || '[]');
+      const currentConversationId = currentConversationIdRef.current;
+      // const currentMsgId = parentMsgIdRef.current; // Lấy msg_id hiện tại
+      const currentMsgId = JSON.parse(localStorage.getItem('lastest') || '[]')?.find(
+        (item: any) => item?.conversation_id === localStorage.getItem('currentConversationIdLocal'),
+      )?.lastestMsgId;
+
+      // Lọc các node có đúng conversation_id và msg_id
+      const targetNode = nodes.find(
+        (node: any) => node.conversation_id === currentConversationId && node.msg_id === currentMsgId,
+      );
+      const restNode = nodes.filter(
+        (node: any) => node.conversation_id !== currentConversationId || node.msg_id !== currentMsgId,
+      );
+      // console.log('currentConversationId', currentConversationId, '=>', currentMsgId);
+      if (targetNode) {
+        console.log('có chạy vào ko');
+        // setTimeout(() => {
+        targetNode.is_completed = StatusNode.FINISHED;
+        localStorage.setItem('nodes', JSON.stringify([...restNode, targetNode]));
+        setCurrentNodeTitle('');
+        // }, 1000);
+      }
+    }
+  }, [forceRenderValue, isTyping, previousTitlesCount, parentMsgIdRef.current, viewStatus]);
+
+  // const indexRef = useRef(0);
+  const indexRef = useRef(
+    JSON.parse(localStorage.getItem('nodes') || '[]')?.find(
+      (item: any) =>
+        item?.conversation_id === location?.state?.id &&
+        item?.msg_id ===
+          JSON.parse(localStorage.getItem('lastest') || '[]')?.find(
+            (item: any) => item?.conversation_id === location?.state?.id,
+          )?.lastestMsgId,
+    )?.node_titles?.length > 0
+      ? JSON.parse(localStorage.getItem('nodes') || '[]')?.find(
+          (item: any) =>
+            item?.conversation_id === location?.state?.id &&
+            item?.msg_id ===
+              JSON.parse(localStorage.getItem('lastest') || '[]')?.find(
+                (item: any) => item?.conversation_id === location?.state?.id,
+              )?.lastestMsgId,
+        )?.node_titles?.length - 1
+      : 0,
+  );
+
+  useEffect(() => {
+    if (messages.length > 0 && messages[messages.length - 1]?.role !== 'User') {
+      const nodes = JSON.parse(localStorage.getItem('nodes') || '[]');
+      const currentConversationId = currentConversationIdRef.current;
+      const currentMsgId = JSON.parse(localStorage.getItem('lastest') || '[]')?.find(
+        (item: any) => item?.conversation_id === localStorage.getItem('currentConversationIdLocal'),
+      )?.lastestMsgId;
+
+      // Lọc các node có đúng conversation_id và msg_id
+      const targetNode = nodes.find(
+        (node: any) => node.conversation_id === currentConversationId && node.msg_id === currentMsgId,
+      );
+      if (targetNode) {
+        if (targetNode?.node_titles?.length > 0) {
+          indexRef.current = targetNode?.node_titles?.length - 1;
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (
+      messages.length > 0 &&
+      messages[messages.length - 1]?.role !== 'User' &&
+      messages[messages.length - 1]?.action === 'WAIT'
+    ) {
+      setViewStatus(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const nodes = JSON.parse(localStorage.getItem('nodes') || '[]');
+    const currentConversationId = currentConversationIdRef.current;
+    const currentMsgId = JSON.parse(localStorage.getItem('lastest') || '[]')?.find(
+      (item: any) => item?.conversation_id === localStorage.getItem('currentConversationIdLocal'),
+    )?.lastestMsgId;
+
+    // Lọc các node có đúng conversation_id và msg_id
+    const targetNode = nodes.find(
+      (node: any) => node.conversation_id === currentConversationId && node.msg_id === currentMsgId,
+    );
+
+    if (targetNode) {
+      if (messages.length > 0 && messages[messages.length - 1]?.role === 'User') {
+        indexRef.current = 0;
+      }
+      if (
+        targetNode?.node_titles?.length > 0 &&
+        !isTyping &&
+        messages.length > 0 &&
+        messages[messages.length - 1]?.role !== 'User'
+      ) {
+        if (
+          // countRef.current !== targetNode?.node_titles.length &&
+          indexRef.current < targetNode?.node_titles.length &&
+          !viewStatus
+          // &&messages[messages.length - 1]?.action === 'WAIT'
+        ) {
+          setIsTyping(true); // Đánh dấu đang gõ
+          typeText([targetNode?.node_titles[indexRef.current]]); // Gọi hàm để bắt đầu gõ
+          // Cập nhật trạng thái số lượng phần tử trong node_titles
+          setPreviousTitlesCount(targetNode?.node_titles.length);
+          countRef.current = targetNode?.node_titles.length;
+          // indexRef.current++;
+        } else {
+          if (
+            countRef.current === targetNode?.node_titles.length &&
+            // indexRef.current === targetNode?.node_titles.length &&
+            targetNode?.node_titles.length === targetNode?.time?.length &&
+            actionMess !== 'WAIT' &&
+            !isStopAnswerRef.current
+          ) {
+            indexRef.current = 0;
+            // viewStatusRef.current = true;
+            setViewStatus(true);
+            console.log('đã chạy xong');
+          } else if (actionMess === 'WAIT') {
+            console.log('đã chạy vào wait');
+            setViewStatus(false);
+          }
+        }
+      }
+    }
+  }, [forceRenderValue, isTyping, previousTitlesCount, parentMsgIdRef.current, actionMess, messages]);
+  const [isSelectedOpener, setIsSelectedOpener] = useState(false);
+
+  const [cursorPosition, setCursorPosition] = useState(0); // Vị trí con trỏ trong textarea
+  const [inputPositions, setInputPositions] = useState<number[]>([]); // Lưu các vị trí cần nhập
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const handleSampleQuestionClick = (item: { text: string; isComplex: boolean }) => {
+    if (isOnline) {
+      console.log(item);
+      if (!item.isComplex) {
+        setIsSelectedOpener(true);
+        setTextValue(item.text);
+      } else if (item.isComplex) {
+        const updatedText = item.text.replace(/(\.\.\.)/g, '{{empty}}');
+        setTextValue(updatedText);
+        // Tạo danh sách các vị trí cần nhập (dấu {{empty}})
+        const positions = [];
+        let lastIndex = 0;
+        while (updatedText.indexOf('{{empty}}', lastIndex) !== -1) {
+          const index = updatedText.indexOf('{{empty}}', lastIndex);
+          positions.push(index);
+          lastIndex = index + '{{empty}}'.length;
+        }
+        setInputPositions(positions);
+      }
+    } else setToastInfo(true);
+  };
+
+  // Hàm xử lý sự kiện khi người dùng nhấn phím Tab
+  const handleTab = (e: any) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+
+      const currentPos = cursorPosition;
+      const nextPos = (currentPos + 1) % inputPositions.length; // Di chuyển đến vị trí tiếp theo (vòng lại)
+      setCursorPosition(nextPos);
+
+      // Di chuyển con trỏ đến vị trí tiếp theo
+      const inputStart = inputPositions[nextPos];
+      const textarea = textareaRef.current;
+      if (textarea) {
+        textarea.setSelectionRange(inputStart, inputStart); // Đặt lại con trỏ ở vị trí mới
+      }
+    }
+  };
+  useEffect(() => {
+    if (isSelectedOpener) {
+      if (textValue) sendMessages();
+    }
+  }, [isSelectedOpener]);
 
   return (
     <div id="main-screen" className="container">
@@ -1355,7 +1814,8 @@ function MainScreen() {
             </div>
             <button
               onClick={() => {
-                history.push('/history');
+                if (isOnline) history.push('/history');
+                else setToastInfo(true);
               }}
               onMouseEnter={() => {
                 setShowTooltip(true);
@@ -1374,7 +1834,8 @@ function MainScreen() {
             <Tippy content="Quay lại" interactive placement="bottom">
               <button
                 onClick={() => {
-                  history.push('/history');
+                  if (isOnline) history.push('/history');
+                  else setToastInfo(true);
                 }}
               >
                 <img id="menu-icon" src={require('../assets/images/back-icon.png')} alt="back-icon" />
@@ -1408,12 +1869,14 @@ function MainScreen() {
               </div>
               <button
                 onClick={() => {
-                  setDetailHis(null);
-                  setMessages([]);
-                  setCurrentConversationID('');
-                  localStorage.removeItem('currentConversationIdLocal');
-                  currentConversationIdRef.current = '';
-                  setActionMess('');
+                  if (isOnline) {
+                    setDetailHis(null);
+                    setMessages([]);
+                    setCurrentConversationID('');
+                    localStorage.removeItem('currentConversationIdLocal');
+                    currentConversationIdRef.current = '';
+                    setActionMess('');
+                  } else setToastInfo(true);
                 }}
                 onMouseEnter={() => {
                   setShowTooltip(true);
@@ -1430,9 +1893,12 @@ function MainScreen() {
         </div>
       )}
       <div className="chat-panel" data-x={forceRenderValue.toString()}>
-        {messages.length > 0 ? (
-          <div ref={scrollRef} id="text-chat-panel" className="text-chat-panel">
-            {messages.map((item: IVsocStoredMessageStore, index) => {
+        <div ref={scrollRef} id="text-chat-panel" className="text-chat-panel">
+          <ConversationOpener onClick={handleSampleQuestionClick} />
+          {messages.length > 0 ? (
+            messages.map((item: IVsocStoredMessageStore, index) => {
+              // console.log('item', { ...item });
+
               const hasLink = regexLink.test(item.message);
               const hasCode = regexCode.test(item.message_html);
               const hasImage = regexImage.test(item.message);
@@ -1485,9 +1951,6 @@ function MainScreen() {
                   return { ...item, content: item.content };
                 });
               }
-              // console.log('arr', arr);
-              // console.log('latex', listLatex);
-              // console.log('item', item);
 
               const renderer = new marked.Renderer();
               if (hasLink) {
@@ -1531,12 +1994,6 @@ function MainScreen() {
                 }
               }
 
-              // console.log('rss', result);
-              // console.log('hasMath', hasMath);
-              // console.log('hasF', regexFootnotes.test(item.message));
-              // console.log('has_', hasFootnotesRef.current);
-              // console.log('nodef', item);
-
               return (
                 <div
                   className="item-chat-view"
@@ -1544,7 +2001,19 @@ function MainScreen() {
                   key={item.conversation_id + '_' + item.time}
                 >
                   {item.role === 'User' ? null : (
-                    <div className="item-name-view">
+                    <div
+                      className="item-name-view"
+                      style={{
+                        opacity:
+                          JSON.parse(localStorage.getItem('nodes') || '[]')?.find(
+                            (node: any) =>
+                              node?.conversation_id === currentConversationIdRef.current &&
+                              node?.msg_id === item.message_id,
+                          )?.is_completed === StatusNode.UNFINISHED
+                            ? 0.5
+                            : 1,
+                      }}
+                    >
                       <img
                         src={imgRole}
                         style={{
@@ -1552,242 +2021,326 @@ function MainScreen() {
                         }}
                         alt="avatar"
                       />
-                      <p style={{ color: colorRole }}>{item.role || 'vSOC'}</p>
-                    </div>
-                  )}
-                  <div
-                    className={inputClass}
-                    ref={(el: HTMLDivElement) => (messageItemRefs.current[index] = el)}
-                    data-msg_id={item?.message_id}
-                    onMouseEnter={() => {
-                      setHoverFeedback({ msg_id: item.message_id as string, display: 'flex' });
-                    }}
-                    onMouseLeave={() => {
-                      setHoverFeedback({ msg_id: item.message_id as string, display: 'none' });
-                    }}
-                  >
-                    {hasImage && (
-                      <>
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) =>
-                              imgStatus[src as string] !== 'error' ? (
-                                <div className="img-download">
-                                  <img
-                                    src={src}
-                                    alt={alt}
-                                    style={{
-                                      width: '160px',
-                                      height: '160px',
-                                      objectFit: 'cover',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                    }}
-                                    onClick={() => handleImageClick(src as string)}
-                                    onError={() => handleImageError(src as string)}
-                                    ref={(el) => (imgRefs.current[index] = el)}
-                                  />
-                                  <img
-                                    src={IconDownGray}
-                                    alt="icon-down"
-                                    style={{ position: 'absolute', right: '10px', top: '10px' }}
-                                    onClick={() => handleDownloadImage(src)}
-                                  />
-                                </div>
-                              ) : null,
+                      <p style={{ color: colorRole }}>{item.role || 'SecAGI'}</p>
+
+                      {JSON.parse(localStorage.getItem('nodes') || '[]')?.find(
+                        (node: any) =>
+                          node?.conversation_id === currentConversationIdRef.current &&
+                          node?.msg_id === item.message_id,
+                      )?.is_completed === StatusNode.FINISHED && item?.action !== 'WAIT' ? (
+                        <p
+                          style={{
+                            marginLeft: '4px',
+                            color: '#89A357',
+                            fontWeight: 400,
+                            display:
+                              hoverFeeback && hoverFeeback.msg_id === item.message_id ? hoverFeeback.display : 'none',
                           }}
                         >
-                          {item.message}
-                        </ReactMarkdown>
-                        <span className="streaming"></span>
-                      </>
-                    )}
+                          {`{xử lý ${
+                            JSON.parse(localStorage.getItem('nodes') || '[]')?.find(
+                              (node: any) =>
+                                node?.conversation_id === currentConversationIdRef.current &&
+                                node?.msg_id === item.message_id,
+                            )?.node_titles?.length
+                          } bước trong ${
+                            JSON.parse(localStorage.getItem('nodes') || '[]')?.find(
+                              (node: any) =>
+                                node?.conversation_id === currentConversationIdRef.current &&
+                                node?.msg_id === item.message_id,
+                            )?.totalTime
+                          }
+                           giây}`}
+                        </p>
+                      ) : JSON.parse(localStorage.getItem('nodes') || '[]')?.find(
+                          (node: any) =>
+                            node?.conversation_id === currentConversationIdRef.current &&
+                            node?.msg_id === item.message_id,
+                        )?.is_completed === StatusNode.UNFINISHED ? (
+                        <p
+                          style={{
+                            display: 'flex',
+                            alignItems: 'end',
+                            marginLeft: '4px',
+                            color: '#F2F2F3',
+                            fontWeight: 400,
+                          }}
+                        >
+                          {
+                            JSON.parse(localStorage.getItem('nodes') || '[]')?.find(
+                              (node: any) =>
+                                node?.conversation_id === currentConversationIdRef.current &&
+                                node?.msg_id === item.message_id,
+                            )?.node_titles[
+                              JSON.parse(localStorage.getItem('nodes') || '[]')?.find(
+                                (node: any) =>
+                                  node?.conversation_id === currentConversationIdRef.current &&
+                                  node?.msg_id === item.message_id,
+                              )?.node_titles?.length - 1
+                            ]
+                          }{' '}
+                          (stopped)
+                        </p>
+                      ) : item.message_id === parentMsgIdRef.current && currentNodeTitle ? (
+                        <p
+                          style={{
+                            display: 'flex',
+                            alignItems: 'end',
+                            marginLeft: '4px',
+                            color: '#F2F2F3',
+                            fontWeight: 400,
+                          }}
+                        >
+                          {currentNodeTitle}
+                          {!isCurrentTitleDone ? (
+                            <span className="streaming_view_process"></span>
+                          ) : (
+                            <div style={{ display: 'flex', gap: '2px', marginBottom: '2px', marginLeft: '2px' }}>
+                              <span className="dot-style"></span>
+                              <span className="dot-style"></span>
+                              <span className="dot-style"></span>
+                            </div>
+                          )}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+                  {(item?.message?.length > 0 || item?.role === 'User') && (
+                    <div
+                      className={inputClass}
+                      ref={(el: HTMLDivElement) => (messageItemRefs.current[index] = el)}
+                      data-msg_id={item?.message_id}
+                      onMouseEnter={() => {
+                        item.role !== 'User' &&
+                          setHoverFeedback({ msg_id: item.message_id as string, display: 'flex' });
+                      }}
+                      onMouseLeave={() => {
+                        item.role !== 'User' &&
+                          setHoverFeedback({ msg_id: item.message_id as string, display: 'none' });
+                      }}
+                    >
+                      {hasImage && (
+                        <>
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) =>
+                                imgStatus[src as string] !== 'error' ? (
+                                  <div className="img-download">
+                                    <img
+                                      src={src}
+                                      alt={alt}
+                                      style={{
+                                        width: '160px',
+                                        height: '160px',
+                                        objectFit: 'cover',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                      }}
+                                      onClick={() => handleImageClick(src as string)}
+                                      onError={() => handleImageError(src as string)}
+                                      ref={(el) => (imgRefs.current[index] = el)}
+                                    />
+                                    <img
+                                      src={IconDownGray}
+                                      alt="icon-down"
+                                      style={{ position: 'absolute', right: '10px', top: '10px' }}
+                                      onClick={() => handleDownloadImage(src)}
+                                    />
+                                  </div>
+                                ) : null,
+                            }}
+                          >
+                            {item.message}
+                          </ReactMarkdown>
+                          <span className="streaming"></span>
+                        </>
+                      )}
 
-                    {hasLink && hasCode && (
-                      <p
-                        className="item-text-chat"
-                        dangerouslySetInnerHTML={{
-                          __html: sanitizedHtmlLink as any,
-                        }}
-                      ></p>
-                    )}
-                    {hasLink && !hasCode && !hasFootnotesRef.current && (
-                      <p
-                        className="item-text-chat"
-                        dangerouslySetInnerHTML={{
-                          __html: sanitizedHtmlLink as any,
-                        }}
-                      ></p>
-                    )}
-
-                    {hasCode && hasMath ? (
-                      <>
-                        {arr.map((latex) => {
-                          if (latex.type == 'html')
-                            return (
-                              <p
-                                className="item-text-chat"
-                                dangerouslySetInnerHTML={{
-                                  __html: DOMPurify.sanitize(latex.content),
-                                }}
-                              ></p>
-                            );
-                          else return <InlineMath math={latex.content} />;
-                        })}
-                        {index === messages.length - 1 && actionMess === 'WAIT' && <span className="streaming"></span>}
-                      </>
-                    ) : null}
-
-                    {(hasCode || hasMarkdown) && !hasLink && !hasMath ? (
-                      <p
-                        className="item-text-chat"
-                        dangerouslySetInnerHTML={{
-                          __html: sanitizedHtml,
-                        }}
-                      ></p>
-                    ) : null}
-
-                    {hasMath && !hasCode ? (
-                      <>
-                        {arr.map((latex) => {
-                          if (latex.type == 'html')
-                            return (
-                              <p
-                                className="item-text-chat"
-                                dangerouslySetInnerHTML={{
-                                  __html: DOMPurify.sanitize(latex.content),
-                                }}
-                              ></p>
-                            );
-                          else return <InlineMath math={latex.content} />;
-                        })}
-                        {index === messages.length - 1 && actionMess === 'WAIT' && <span className="streaming"></span>}
-                      </>
-                    ) : null}
-
-                    {hasFootnotesRef.current && (
-                      <p className="item-text-chat" style={{ display: 'inline' }}>
-                        <ReactMarkdown children={result} remarkPlugins={[remarkGfm, remarkKeepFootnotes]} />
-                        <span className="streaming"></span>
-                      </p>
-                    )}
-
-                    {!hasLink && !hasImage && !hasCode && !hasMath && !hasMarkdown && !hasFootnotesRef.current ? (
-                      item.role === 'User' ? (
-                        <p className="item-text-chat">{item.message}</p>
-                      ) : (
+                      {hasLink && hasCode && (
                         <p
                           className="item-text-chat"
                           dangerouslySetInnerHTML={{
-                            __html: DOMPurify.sanitize(marked(item.message + IconStreaming) as any),
+                            __html: sanitizedHtmlLink as any,
                           }}
                         ></p>
-                      )
-                    ) : null}
-
-                    {inputClass === 'item-chat' &&
-                      hoverFeeback &&
-                      hoverFeeback.msg_id === item.message_id &&
-                      ((actionMess === 'WAIT' && item.action === 'DONE') || actionMess !== 'WAIT') && (
-                        <Box
-                          ref={feedbackRef}
-                          sx={{
-                            display: hoverFeeback.display,
-                            padding: '4px',
-                            width: '88px',
-                            height: '32px',
-                            border: '1px solid rgba(255, 255, 255, 0.12)',
-                            borderRadius: '4px',
-                            backgroundColor: '#3D3D43',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            position: 'absolute',
-                            bottom: '-22px',
-                          }}
-                        >
-                          <Tippy
-                            content={copiedMessage[item.message_id as string] ? 'Copied' : 'Copy'}
-                            interactive
-                            placement="bottom"
-                          >
-                            <IconButton
-                              sx={{ padding: 0 }}
-                              onClick={() => handleCopy(item.message_id as string, index)}
-                            >
-                              {copiedMessage[item.message_id as string] ? (
-                                <img src={IconPressed} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
-                              ) : (
-                                <img src={IconCopy} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
-                              )}
-                            </IconButton>
-                          </Tippy>
-                          <Tippy content="Phản hồi tốt" interactive placement="bottom" className="custom-tippy-liked">
-                            <IconButton
-                              sx={{ padding: 0 }}
-                              onClick={() =>
-                                handleFeedback(
-                                  item.feedback?.rating === 'like' ? null : 'like',
-                                  item.message_id as string,
-                                )
-                              }
-                            >
-                              {item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'like' ? (
-                                <img src={IconLiked} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
-                              ) : (
-                                <img src={IconLike} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
-                              )}
-                            </IconButton>
-                          </Tippy>
-                          <Tippy
-                            content="Phản hồi không tốt"
-                            interactive
-                            placement="bottom"
-                            className="custom-tippy-disliked"
-                          >
-                            <IconButton
-                              sx={{ padding: 0 }}
-                              onClick={() =>
-                                handleFeedback(
-                                  item.feedback?.rating === 'dislike' ? null : 'dislike',
-                                  item.message_id as string,
-                                )
-                              }
-                            >
-                              {item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'dislike' ? (
-                                <img src={IconDisLiked} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
-                              ) : (
-                                <img src={IconDisLike} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
-                              )}
-                            </IconButton>
-                          </Tippy>
-                        </Box>
                       )}
-                  </div>
+                      {hasLink && !hasCode && !hasFootnotesRef.current && (
+                        <p
+                          className="item-text-chat"
+                          dangerouslySetInnerHTML={{
+                            __html: sanitizedHtmlLink as any,
+                          }}
+                        ></p>
+                      )}
+
+                      {hasCode && hasMath ? (
+                        <>
+                          {arr.map((latex) => {
+                            if (latex.type == 'html')
+                              return (
+                                <p
+                                  className="item-text-chat"
+                                  dangerouslySetInnerHTML={{
+                                    __html: DOMPurify.sanitize(latex.content),
+                                  }}
+                                ></p>
+                              );
+                            else return <InlineMath math={latex.content} />;
+                          })}
+                          {index === messages.length - 1 && actionMess === 'WAIT' && (
+                            <span className="streaming"></span>
+                          )}
+                        </>
+                      ) : null}
+
+                      {(hasCode || hasMarkdown) && !hasLink && !hasMath ? (
+                        <p
+                          className="item-text-chat"
+                          dangerouslySetInnerHTML={{
+                            __html: sanitizedHtml,
+                          }}
+                        ></p>
+                      ) : null}
+
+                      {hasMath && !hasCode ? (
+                        <>
+                          {arr.map((latex) => {
+                            if (latex.type == 'html')
+                              return (
+                                <p
+                                  className="item-text-chat"
+                                  dangerouslySetInnerHTML={{
+                                    __html: DOMPurify.sanitize(latex.content),
+                                  }}
+                                ></p>
+                              );
+                            else return <InlineMath math={latex.content} />;
+                          })}
+                          {index === messages.length - 1 && actionMess === 'WAIT' && (
+                            <span className="streaming"></span>
+                          )}
+                        </>
+                      ) : null}
+
+                      {hasFootnotesRef.current && (
+                        <p className="item-text-chat" style={{ display: 'inline' }}>
+                          <ReactMarkdown children={result} remarkPlugins={[remarkGfm, remarkKeepFootnotes]} />
+                          <span className="streaming"></span>
+                        </p>
+                      )}
+
+                      {!hasLink && !hasImage && !hasCode && !hasMath && !hasMarkdown && !hasFootnotesRef.current ? (
+                        item.role === 'User' ? (
+                          <p className="item-text-chat">{item.message}</p>
+                        ) : (
+                          <p
+                            className="item-text-chat"
+                            dangerouslySetInnerHTML={{
+                              __html: DOMPurify.sanitize(marked(item.message + IconStreaming) as any),
+                            }}
+                          ></p>
+                        )
+                      ) : null}
+
+                      {inputClass === 'item-chat' &&
+                        hoverFeeback &&
+                        hoverFeeback.msg_id === item.message_id &&
+                        ((actionMess === 'WAIT' && item.action === 'DONE') || actionMess !== 'WAIT') && (
+                          <Box
+                            ref={feedbackRef}
+                            sx={{
+                              display: hoverFeeback.display,
+                              padding: '4px',
+                              width: '88px',
+                              height: '32px',
+                              border: '1px solid rgba(255, 255, 255, 0.12)',
+                              borderRadius: '4px',
+                              backgroundColor: '#3D3D43',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              position: 'absolute',
+                              bottom: '-22px',
+                            }}
+                          >
+                            <Tippy
+                              content={copiedMessage[item.message_id as string] ? 'Copied' : 'Copy'}
+                              interactive
+                              placement="bottom"
+                            >
+                              <IconButton sx={{ padding: 0 }} onClick={() => handleCopy(item.message_id as string)}>
+                                {copiedMessage[item.message_id as string] ? (
+                                  <img src={IconPressed} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                                ) : (
+                                  <img src={IconCopy} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                                )}
+                              </IconButton>
+                            </Tippy>
+                            <Tippy content="Phản hồi tốt" interactive placement="bottom" className="custom-tippy-liked">
+                              <IconButton
+                                sx={{ padding: 0 }}
+                                onClick={() =>
+                                  handleFeedback(
+                                    item.feedback?.rating === 'like' ? null : 'like',
+                                    item.message_id as string,
+                                  )
+                                }
+                              >
+                                {item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'like' ? (
+                                  <img src={IconLiked} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                                ) : (
+                                  <img src={IconLike} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                                )}
+                              </IconButton>
+                            </Tippy>
+                            <Tippy
+                              content="Phản hồi không tốt"
+                              interactive
+                              placement="bottom"
+                              className="custom-tippy-disliked"
+                            >
+                              <IconButton
+                                sx={{ padding: 0 }}
+                                onClick={() =>
+                                  handleFeedback(
+                                    item.feedback?.rating === 'dislike' ? null : 'dislike',
+                                    item.message_id as string,
+                                  )
+                                }
+                              >
+                                {item.message_id === hoverFeeback.msg_id && item.feedback?.rating === 'dislike' ? (
+                                  <img src={IconDisLiked} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                                ) : (
+                                  <img src={IconDisLike} alt="icon-copy" style={{ width: '24px', height: '24px' }} />
+                                )}
+                              </IconButton>
+                            </Tippy>
+                          </Box>
+                        )}
+                    </div>
+                  )}
                 </div>
               );
-            })}
-          </div>
-        ) : (
-          <div id="default-text-chat" className="default-text-chat">
-            <img id="people-icon" src={require('../assets/images/people-icon.png')} alt="people-icon" />
-            <p className="default-title-no-data">Xin chào! Chúng tôi là vSOC</p>
-            <p className="default-no-data">
-              vSOC sẽ giải đáp cho bạn về an toàn thông tin và hỗ trợ tự động phân tích cảnh báo.
-            </p>
-          </div>
-        )}
-        {actionMess === 'WAIT' &&
-        messages.length > 0 &&
-        messages[messages.length - 1]?.role === 'User' &&
-        ((messageStatus?.msg_type === 'user' &&
-          JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
-            (itemBot: any) => itemBot?.converId === currentConversationIdRef.current,
-          ) &&
-          JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
-            (itemBot: any) => itemBot?.converId === currentConversationIdRef.current,
-          )?.type_answer === 'no_answer') ||
-          messageStatus?.msg_type === 'init') ? (
+            })
+          ) : (
+            <div id="default-text-chat" className="default-text-chat">
+              <img id="people-icon" src={require('../assets/images/people-icon.png')} alt="people-icon" />
+              <p className="default-title-no-data">Xin chào! Chúng tôi là SecAGI</p>
+              <p className="default-no-data">
+                SecAGI sẽ giải đáp cho bạn về an toàn thông tin và hỗ trợ tự động phân tích cảnh báo.
+              </p>
+            </div>
+          )}
+        </div>
+        {actionMess === 'WAIT' && messages.length > 0 && messages[messages.length - 1]?.role === 'User' ? (
+          // &&((messageStatus?.msg_type === 'user' &&
+          //   JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
+          //     (itemBot: any) => itemBot?.converId === currentConversationIdRef.current,
+          //   ) &&
+          //   JSON.parse(localStorage.getItem('answer_bot') || '[]').find(
+          //     (itemBot: any) => itemBot?.converId === currentConversationIdRef.current,
+          //   )?.type_answer === 'no_answer') ||
+          //   messageStatus?.msg_type === 'init')
           <p className="typing-text">
             <span className="cursor"></span>
           </p>
@@ -1795,6 +2348,7 @@ function MainScreen() {
         <div className="input-chat">
           <div className="container" id="container">
             <textarea
+              ref={textareaRef}
               id="textarea"
               className="container__textarea"
               placeholder="Nhập prompt..."
@@ -1805,18 +2359,23 @@ function MainScreen() {
               onDrop={handleDrop}
               onPaste={handlePaste}
               onKeyDown={handleKeyDown}
+              // onKeyDown={handleTab}
               // onBlur={handleBlur}
               onFocus={handleFocus}
             />
 
             <Tippy content={actionMess === 'WAIT' ? 'Dừng' : 'Gửi'} interactive placement="top">
               {(actionMess === 'WAIT' &&
-                JSON.parse(localStorage.getItem('answer_bot') || '[]')?.find(
-                  (bot: any) => bot?.converId === currentConversationIdRef.current,
-                )?.type_answer === 'generating_answer' &&
-                JSON.parse(localStorage.getItem('stop_bot') || '[]')?.find(
-                  (bot: any) => bot?.converId === currentConversationIdRef.current,
-                )?.is_stop === 'false') ||
+                messages.length > 0 &&
+                messages[messages.length - 1]?.role !== 'User' &&
+                !stopGenerate) ||
+              // &&
+              //   JSON.parse(localStorage.getItem('answer_bot') || '[]')?.find(
+              //     (bot: any) => bot?.converId === currentConversationIdRef.current,
+              //   )?.type_answer === 'generating_answer' &&
+              //   JSON.parse(localStorage.getItem('stop_bot') || '[]')?.find(
+              //     (bot: any) => bot?.converId === currentConversationIdRef.current,
+              //   )?.is_stop === 'false')
               timeStop.current ? (
                 <button id="send-text" onClick={handleStopGenarate}>
                   <img src={PauseIcon} alt="pause-icon" />
@@ -1826,7 +2385,10 @@ function MainScreen() {
                   className={actionMess === 'WAIT' || !textValue.trim() ? 'disable-button' : ''}
                   disabled={actionMess === 'WAIT' || !textValue.trim()}
                   id="send-text"
-                  onClick={sendMessages}
+                  onClick={() => {
+                    if (isOnline) sendMessages();
+                    else setToastInfo(true);
+                  }}
                 >
                   {textValue.trim().length > 0 && stopGenerate ? (
                     <img id="send-icon" src={IcondSendActive} alt="send-icon" />
@@ -1853,7 +2415,22 @@ function MainScreen() {
           onClick={(arg: string) => handleSaveConvDetail(detailHis.id, arg)}
         />
       )}
-      {toastInfo && (
+
+      {toastInfo && !feebackResponse && !isEditDetail && !isEditDetail && !isDrop && !isPaste && (
+        <ToastNotification
+          height={56}
+          width={351}
+          icon={isOnline ? CheckIcon : AlertIcon}
+          bg={isOnline ? '#89A357' : '#C95859'}
+          open={toastInfo}
+          handleClose={() => {
+            setToastInfo(false);
+          }}
+          message={message}
+        />
+      )}
+
+      {toastInfo && (isEditDetail || feebackResponse || isDrop || isPaste) && (
         <ToastNotification
           height={feebackResponse ? 56 : 40}
           width={feebackResponse ? 351 : 375}
@@ -1870,6 +2447,9 @@ function MainScreen() {
           handleClose={() => {
             setToastInfo(false);
             setErrorMessage('');
+            setFeedbackResponse(false);
+            setIsDrop(false);
+            setIsPaste(false);
           }}
         />
       )}
