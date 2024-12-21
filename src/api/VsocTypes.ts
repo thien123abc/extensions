@@ -12,11 +12,13 @@ export interface IVsocApiResult<T> {
 export interface IVsocCreateConversationArgs {
   text: string;
   type: VsocConversationType;
+  parentMsgId: string | null;
 }
 
 export interface IVsocSendMessageArgs {
   text: string;
   conversation_id: string;
+  parentMsgId: string | null;
 }
 
 export interface IVsocCreateConversationResult {
@@ -53,6 +55,9 @@ export interface IVsocStoredMessage {
   message_id?: string;
   feedback?: { rating: 'like' | 'dislike' } | null;
   task_id?: string;
+  event: 'node' | 'message';
+  node_title: string;
+  elapsed_time: number;
 }
 
 export interface IVsocStoreConversationArgs {
@@ -123,4 +128,17 @@ export interface IVsocMessageApiResponse {
   feedback?: { rating: 'like' | 'dislike' } | null;
   id: string;
   query?: string;
+}
+
+export interface IVsocParametersResponse {
+  opening_statement: string;
+  suggested_questions: string[];
+  suggested_questions_after_answer: {
+    enabled: boolean;
+  };
+}
+
+export interface IVsocParametersResponseWithComplexQuestions
+  extends Omit<IVsocParametersResponse, 'suggested_questions'> {
+  suggested_questions: { text: string; isComplex: boolean }[];
 }
